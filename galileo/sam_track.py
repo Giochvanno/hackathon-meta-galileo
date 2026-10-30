@@ -71,7 +71,12 @@ def tracks_from_detections(dets: list[Detection], t: np.ndarray) -> dict[str, Tr
     return tracks
 
 
-def choose_moving_object(tracks: dict[str, Track]) -> tuple[str, dict[str, dict]]:
+class NoMovingObjectError(RuntimeError):
+    pass
+
+
+def choose_moving_object(tracks: dict[str, Track],
+                         min_spread_px: float = 8.0) -> tuple[str, dict[str, dict]]:
     """Pick the object that is both well tracked and actually moving.
 
     A wired earphone has two buds; the one lying still on the table scores ~0.
@@ -87,4 +92,10 @@ def choose_moving_object(tracks: dict[str, Track]) -> tuple[str, dict[str, dict]
     if not summary:
         raise RuntimeError("SAM found no object. Try another prompt (`probe`) or --point X,Y.")
     best = max(summary, key=lambda k: summary[k]["score"])
+    if summary[best]["spread_px"] < min_spread_px:
+        found = ", ".join(f"id {k}: {v['frames']} frames, moves {v['spread_px']} px"
+                          for k, v in summary.items())
+        raise NoMovingObjectError(
+            f"SAM found only objects that stay still ({found}). The phrase matched something "
+            "else in the scene. Check it with `probe`, or click the bob with --point X,Y.")
     return best, summary

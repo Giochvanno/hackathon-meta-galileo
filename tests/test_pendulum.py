@@ -77,3 +77,13 @@ def test_too_few_points_raises():
     t = np.arange(0, 1, 1 / 30)
     with pytest.raises(ValueError):
         analyze_pendulum(_track(t, simulate_pendulum(t)), 0.52)
+
+
+def test_static_object_is_flagged_unreliable():
+    rng = np.random.default_rng(5)
+    t = np.arange(0, 25, 1 / 30)
+    n = len(t)
+    tr = Track(t, 335 + rng.normal(0, 1, n), 150 + rng.normal(0, 1, n), np.full(n, np.nan),
+               np.full(n, np.nan))
+    res = analyze_pendulum(tr, 0.46)
+    assert not res.reliable and res.problems

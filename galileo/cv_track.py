@@ -14,7 +14,17 @@ import numpy as np
 from .track import Track
 
 
-def _background(path: str, n_frames: int, max_samples: int = 120) -> np.ndarray:
+def _warp(frame: np.ndarray, maps: np.ndarray | None, i: int) -> np.ndarray:
+    """Bring a frame into frame-0 coordinates when the camera moved."""
+    if maps is None or i >= len(maps):
+        return frame
+    h, w = frame.shape[:2]
+    return cv2.warpAffine(frame, maps[i], (w, h), flags=cv2.INTER_LINEAR,
+                          borderMode=cv2.BORDER_REFLECT)
+
+
+def _background(path: str, n_frames: int, maps: np.ndarray | None,
+                max_samples: int = 120) -> np.ndarray:
     step = max(1, n_frames // max_samples)
     cap = cv2.VideoCapture(path)
     samples, i = [], 0
@@ -23,16 +33,18 @@ def _background(path: str, n_frames: int, max_samples: int = 120) -> np.ndarray:
         if not ok:
             break
         if i % step == 0:
-            samples.append(cv2.GaussianBlur(frame, (5, 5), 0))
+            samples.append(cv2.GaussianBlur(_warp(frame, maps, i), (5, 5), 0))
         i += 1
     cap.release()
     return np.median(np.stack(samples), axis=0).astype(np.uint8)
 
 
 def track_moving_blob(video_path: str, t: np.ndarray, diff_threshold: int = 30,
-                      min_area: int = 15, open_px: int = 5) -> Track:
+                      min_area: int = 15, open_px: int = 5,
+                      maps: np.ndarray | None = None) -> Track:
+    """`maps` (from stabilize.py) warps frames to frame 0, so the result is already stabilized."""
     n = len(t)
-    bg = _background(str(video_path), n)
+    bg = _background(str(video_path), n, maps)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (open_px, open_px))
     x, y, area = np.full(n, np.nan), np.full(n, np.nan), np.full(n, np.nan)
     cap = cv2.VideoCapture(str(video_path))
@@ -41,7 +53,7 @@ def track_moving_blob(video_path: str, t: np.ndarray, diff_threshold: int = 30,
         ok, frame = cap.read()
         if not ok:
             break
-        diff = cv2.absdiff(cv2.GaussianBlur(frame, (5, 5), 0), bg).max(axis=2)
+        diff = cv2.absdiff(cv2.GaussianBlur(_warp(frame, maps, i), (5, 5), 0), bg).max(axis=2)
         _, fg = cv2.threshold(diff, diff_threshold, 255, cv2.THRESH_BINARY)
         fg = cv2.morphologyEx(fg, cv2.MORPH_OPEN, kernel)
         k, labels, stats, cents = cv2.connectedComponentsWithStats(fg)
@@ -60,4 +72,6 @@ def track_moving_blob(video_path: str, t: np.ndarray, diff_threshold: int = 30,
         x[i], y[i], area[i] = xs.mean(), ys.mean(), float(len(xs))
         prev = np.array([x[i], y[i]])
     cap.release()
-    return Track(t, x, y, area, np.full(n, np.nan), source="opencv-bgsub")
+    tr = Track(t, x, y, area, np.full(n, np.nan), source="opencv-bgsub")
+    tr.meta["stabilized"] = maps is not None
+    return tr

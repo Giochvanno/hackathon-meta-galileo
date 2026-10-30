@@ -44,3 +44,15 @@ def test_end_to_end_fake_sam_to_g():
     res = analyze_pendulum(tracks[best].clean(), L, 0.002, g_reference=g)
     assert abs(res.g - g) / g < 0.003
     assert res.px_per_m is not None and abs(res.px_per_m - ppm) / ppm < 0.1
+
+
+def test_only_static_objects_raises():
+    import pytest
+
+    from galileo.sam_track import NoMovingObjectError
+
+    t = np.arange(40) / 30
+    text = fake_sam_text(np.full(40, 600.0), np.full(40, 500.0))
+    tracks = tracks_from_detections(parse_sam_output(text)[0], t)
+    with pytest.raises(NoMovingObjectError):
+        choose_moving_object(tracks)

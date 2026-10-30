@@ -15,6 +15,9 @@ the prediction against a new recording.
   or from a single click / box when the phrase is ambiguous.
 * **Exact frame timestamps.** Android records variable frame rate; we read each frame's
   real presentation time instead of assuming `i / fps`.
+* **Camera-shake compensation.** Static scene features are tracked frame to frame
+  (Lucas-Kanade + RANSAC) and every position is mapped back to frame 0, so a phone
+  leaning on a book or held by hand still measures correctly.
 * **Four damping laws compared by AIC:** none, viscous (∝v), quadratic air drag (∝v²),
   Coulomb pivot friction — the measurement decides, not us.
 * **Two independent period estimates:** a nonlinear model fit and a model-free
@@ -34,7 +37,7 @@ On a synthetic video with known physics (13°, damped, motion blur, a decoy obje
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 cp .env.example .env                                    # put your MODEL_API_KEY in it
-pytest -q                                               # 17 tests, no network needed
+pytest -q                                               # 18 tests, no network needed
 ```
 
 ffmpeg comes with `imageio-ffmpeg`; no system install needed.

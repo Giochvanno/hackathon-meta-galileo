@@ -247,6 +247,8 @@ class PendulumResult:
     quality_factor: float | None
     warnings: list[str] = field(default_factory=list)
     crossings: dict | None = None
+    reliable: bool = True
+    problems: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -350,7 +352,22 @@ def analyze_pendulum(track: Track, length_m: float, sigma_length_m: float = 0.00
                "damping_per_s": m.lam, "residual_rms_px": m.residual_rms,
                "autocorr_inflation": m.autocorr_inflation} for m in fits]
 
+    # Is there a pendulum in this track at all? Signal-to-noise and timing regularity.
+    problems = []
+    snr = best.amplitude() / max(best.residual_rms, 1e-9)
+    if snr < 5:
+        problems.append(f"swing amplitude {best.amplitude():.1f} px is not above the tracking noise "
+                        f"{best.residual_rms:.1f} px (the tracked object barely moves)")
+    if cycles < 3:
+        problems.append(f"only {cycles:.1f} cycles in the window")
+    if cross is None:
+        problems.append("too few equilibrium crossings")
+    elif cross["timing_residual_ms"] > 100 * T_meas:  # scatter > 10 % of the period
+        problems.append(f"equilibrium crossings are irregular ({cross['timing_residual_ms']:.0f} ms "
+                        "scatter)")
+
     return PendulumResult(
+        reliable=not problems, problems=problems,
         length_m=length_m, sigma_length_m=sigma_length_m, n_points=int(len(t)),
         duration_s=duration, cycles=cycles, best_model=best.name, models=models,
         T_measured=T_meas, sigma_T_measured=sig_T_meas, T_crossings=T_cross,

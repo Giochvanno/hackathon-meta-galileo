@@ -8,3 +8,5 @@ data/*.mp4
 data/*.mov
 data/*.json
 !data/.gitkeep
+*.patch
+*.zip

@@ -59,6 +59,8 @@ def fit_report(track: Track, res: PendulumResult, path: str | Path) -> Path:
     ax.legend(loc="upper right", frameon=False, fontsize=9, labelcolor=INK_2)
     title = (f"g = {res.g:.3f} ± {res.sigma_g:.3f} m/s²   ({res.g_error_pct:+.2f}% vs "
              f"{res.g_reference:.4f}, {res.deviation_sigma:+.1f}σ)")
+    if not res.reliable:
+        title = "UNRELIABLE: " + res.problems[0][:90]
     ax.set_title(title, loc="left", color=INK, fontsize=13, fontweight="bold", pad=24)
     amp = f"{res.amplitude_deg:.1f}° ({res.amplitude_source})" if res.amplitude_deg else "unknown"
     q = f"   Q ≈ {res.quality_factor:.0f}" if res.quality_factor else ""

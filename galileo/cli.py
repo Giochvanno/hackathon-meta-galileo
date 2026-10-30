@@ -61,7 +61,8 @@ def cmd_probe(a) -> None:
 
 
 # --------------------------------------------------------------- tracking ---
-def _sam_track(a, video_path: Path, t: np.ndarray, info: dict, out: Path) -> Track:
+def _sam_track(a, video_path: Path, t: np.ndarray, info: dict, out: Path,
+               maps: np.ndarray | None = None) -> Track:
     from .sam_client import box_prompt, estimate_cost_usd, get_client, point_prompt, segment_video
     from .sam_track import choose_moving_object, parse_sam_output, tracks_from_detections
 
@@ -89,6 +90,10 @@ def _sam_track(a, video_path: Path, t: np.ndarray, info: dict, out: Path) -> Tra
     for w in warns[:5]:
         print("parser:", w, file=sys.stderr)
     tracks = tracks_from_detections(dets, t)
+    if maps is not None:  # judge motion in frame-0 coordinates, so camera shake doesn't count
+        from .stabilize import apply_to_track
+
+        tracks = {k: apply_to_track(v, maps) for k, v in tracks.items()}
     best, summary = choose_moving_object(tracks)
     (out / "sam_objects.json").write_text(json.dumps(summary, indent=2))
     print(f"SAM objects: {summary}\n-> using object {best}", file=sys.stderr)
@@ -103,12 +108,21 @@ def cmd_pendulum(a) -> None:
     print(f"video: {info['width']}x{info['height']}, {info['frames']} frames, "
           f"{info['fps_mean']:.2f} fps, frame-interval jitter {info['frame_interval_jitter_ms']:.2f} ms",
           file=sys.stderr)
+    maps = None
+    if not a.no_stabilize:
+        from .stabilize import load_or_estimate, motion_summary
+
+        maps = load_or_estimate(video_path, out / "camera_motion.npy", refresh=a.refresh)
+        info["camera_motion"] = motion_summary(maps)
+        cm = info["camera_motion"]
+        print(f"camera moved: {cm['shift_x_px']:.1f} px x, {cm['shift_y_px']:.1f} px y, "
+              f"{cm['rotation_deg']:.2f} deg -> compensated", file=sys.stderr)
     if a.tracker == "opencv":
         from .cv_track import track_moving_blob
 
-        track = track_moving_blob(str(video_path), t)
+        track = track_moving_blob(str(video_path), t, maps=maps)
     else:
-        track = _sam_track(a, video_path, t, info, out)
+        track = _sam_track(a, video_path, t, info, out, maps)
     track.to_csv(out / "track.csv")
     print(f"tracked on {track.coverage():.0%} of frames -> {out / 'track.csv'}", file=sys.stderr)
     _analyze_and_report(a, track, out, video_path, info)
@@ -128,6 +142,15 @@ def _analyze_and_report(a, track: Track, out: Path, video_path: Path | None, inf
     work = track.clean().window(a.t_start, a.t_end)
     res = analyze_pendulum(work, a.length, a.length_err, amplitude_deg=a.amplitude_deg,
                            g_reference=g_ref)
+    cm = info.get("camera_motion")
+    if cm and max(cm["shift_x_px"], cm["shift_y_px"]) > 5:
+        res.warnings.append(f"camera moved {max(cm['shift_x_px'], cm['shift_y_px']):.0f} px during "
+                            "the recording (compensated); fix the phone for best accuracy")
+    implied_L = res.g_reference * res.T0**2 / (4 * np.pi**2)
+    if abs(implied_L - a.length) / a.length > 0.1:
+        res.warnings.append(f"the period fits a simple pendulum of L = {implied_L * 100:.1f} cm, "
+                            f"but --length is {a.length * 100:.1f} cm: re-measure L, or the "
+                            "pendulum is not simple (stiff cable, heavy cable, tumbling bob)")
     out.mkdir(parents=True, exist_ok=True)
     payload = {"result": res.to_dict(), "video": info, "tracker": track.source,
                "track_meta": track.meta}
@@ -138,6 +161,9 @@ def _analyze_and_report(a, track: Track, out: Path, video_path: Path | None, inf
         overlay(vid.read_frame(video_path, mid), work, res, out / "overlay.png")
 
     print()
+    if not res.reliable:
+        print("  !!! UNRELIABLE MEASUREMENT: " + "; ".join(res.problems))
+        print("  !!! The numbers below are not a measurement. Fix the tracking first.\n")
     print(f"  period (fit, {res.best_model}) T = {res.T_measured:.4f} ± {res.sigma_T_measured:.4f} s")
     if res.T_crossings:
         print(f"  period (zero crossings)   T = {res.T_crossings:.4f} ± {res.sigma_T_crossings:.4f} s"
@@ -186,6 +212,8 @@ def main(argv: list[str] | None = None) -> None:
     pe.add_argument("--point", help="X,Y click on frame 0 (video px) instead of a phrase")
     pe.add_argument("--box", help="L,T,R,B box on frame 0 instead of a phrase")
     pe.add_argument("--refresh", action="store_true", help="redo preprocessing and the SAM call")
+    pe.add_argument("--no-stabilize", action="store_true",
+                    help="skip camera-motion compensation (phone on a tripod)")
     fit_args(pe)
     pe.set_defaults(func=cmd_pendulum)
 
@@ -195,7 +223,13 @@ def main(argv: list[str] | None = None) -> None:
     an.set_defaults(func=cmd_analyze)
 
     a = p.parse_args(argv)
-    a.func(a)
+    from .sam_track import NoMovingObjectError
+
+    try:
+        a.func(a)
+    except NoMovingObjectError as e:
+        print(f"\nERROR: {e}", file=sys.stderr)
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":
