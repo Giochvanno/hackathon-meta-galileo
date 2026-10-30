@@ -33,6 +33,8 @@ def ffmpeg_exe() -> str:
 
 def preprocess(src: str | Path, dst: str | Path, max_side: int = 1280) -> Path:
     src, dst = Path(src), Path(dst)
+    if not src.is_file():
+        raise FileNotFoundError(f"video not found: {src.resolve()}")
     dst.parent.mkdir(parents=True, exist_ok=True)
     vf = (f"scale='min({max_side},iw)':'min({max_side},ih)'"
           ":force_original_aspect_ratio=decrease:force_divisible_by=2")
@@ -42,9 +44,12 @@ def preprocess(src: str | Path, dst: str | Path, max_side: int = 1280) -> Path:
     try:
         subprocess.run(base + ["-fps_mode", "passthrough"] + tail, check=True,
                        capture_output=True, text=True)
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as first:
         # ffmpeg < 5.1 has no -fps_mode; -vsync 0 is the old spelling of passthrough.
-        subprocess.run(base + ["-vsync", "0"] + tail, check=True, capture_output=True, text=True)
+        try:
+            subprocess.run(base + ["-vsync", "0"] + tail, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError:
+            raise RuntimeError(f"ffmpeg could not convert {src}:\n{first.stderr.strip()}") from None
     return dst
 
 

@@ -3,6 +3,7 @@
     python -m galileo.cli probe    VIDEO --prompts earbud "white earbud" earphone
     python -m galileo.cli pendulum VIDEO --length 0.52 --prompt "white earbud"
     python -m galileo.cli pendulum VIDEO --length 0.52 --point 640,410   # click instead of text
+    python -m galileo.cli pendulum VIDEO --length 0.52 --point 280,845 --prompt-frame 150
     python -m galileo.cli pendulum VIDEO --length 0.52 --tracker opencv  # no API, sanity check
     python -m galileo.cli analyze  runs/NAME/track.csv --length 0.52     # re-fit, no video work
 """
@@ -68,12 +69,15 @@ def _sam_track(a, video_path: Path, t: np.ndarray, info: dict, out: Path,
 
     size = (info["width"], info["height"])
     extra: dict[str, str] = {}
+    f0 = a.prompt_frame
     if a.point:
-        text, tag = point_prompt(size, *_xy(a.point)), "point-" + a.point.replace(",", "-")
+        text = point_prompt(size, *_xy(a.point), frame=f0)
+        tag = f"point-{a.point.replace(',', '-')}-f{f0}"
         extra["propagation_direction"] = "forward"
     elif a.box:
         l, tp, r, b = (int(v) for v in a.box.split(","))
-        text, tag = box_prompt(size, (l, tp, r, b)), "box-" + a.box.replace(",", "-")
+        text = box_prompt(size, (l, tp, r, b), frame=f0)
+        tag = f"box-{a.box.replace(',', '-')}-f{f0}"
         extra["propagation_direction"] = "forward"
     else:
         text, tag = a.prompt, _slug(a.prompt)
@@ -211,6 +215,9 @@ def main(argv: list[str] | None = None) -> None:
     pe.add_argument("--prompt", default="white earbud", help="noun phrase for SAM 3.1")
     pe.add_argument("--point", help="X,Y click on frame 0 (video px) instead of a phrase")
     pe.add_argument("--box", help="L,T,R,B box on frame 0 instead of a phrase")
+    pe.add_argument("--prompt-frame", type=int, default=0,
+                    help="frame the --point/--box refers to (pick one after the hand has left; "
+                         "SAM tracks forward from it and bills only those frames)")
     pe.add_argument("--refresh", action="store_true", help="redo preprocessing and the SAM call")
     pe.add_argument("--no-stabilize", action="store_true",
                     help="skip camera-motion compensation (phone on a tripod)")
@@ -227,7 +234,7 @@ def main(argv: list[str] | None = None) -> None:
 
     try:
         a.func(a)
-    except NoMovingObjectError as e:
+    except (NoMovingObjectError, FileNotFoundError, RuntimeError) as e:
         print(f"\nERROR: {e}", file=sys.stderr)
         raise SystemExit(2)
 
