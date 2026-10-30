@@ -1,0 +1,24 @@
+[project]
+name = "galileo"
+version = "0.1.0"
+description = "A phone camera as a physics lab: SAM 3.1 tracking + model fitting + an AI experimenter."
+requires-python = ">=3.10"
+dependencies = [
+    "openai>=2.0",
+    "meta-sam-parser>=0.1.0",
+    "numpy>=1.26",
+    "scipy>=1.12",
+    "opencv-python>=4.9",
+    "matplotlib>=3.8",
+    "imageio-ffmpeg>=0.5",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools]
+packages = ["galileo"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
