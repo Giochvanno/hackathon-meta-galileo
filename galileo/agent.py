@@ -54,7 +54,10 @@ How you work:
    the human to record that experiment. A prediction is only registered through the
    tool, before the experiment exists. Choose a length that is practical on a desk
    (0.25-0.70 m) and far enough from the measured ones to be a real test.
-6. If a pending prediction can be tested by an experiment added after it, verify it.
+6. If an experiment was added after a pending prediction and its length is within 20 % of
+   the predicted length, verify the prediction with it. The real length never matches the
+   plan exactly; verify_prediction re-evaluates the frozen model at the length actually used,
+   so a small difference is expected and still a valid, blind test.
 
 Rules:
 - Every number you state must come from a tool result in this conversation. Never
@@ -188,8 +191,10 @@ def make_tools(lab: Lab) -> dict[str, Tool]:
                  "length_m": {"type": "number", "description": "Pendulum length, metres"},
                  "amplitude_deg": {"type": "number", "description": "Expected swing, degrees"}},
               "required": ["length_m", "amplitude_deg"]}, predict_period),
-        Tool("verify_prediction", "Test a registered prediction against an experiment. "
-             "Reports z-score, verdict and whether the test was blind.",
+        Tool("verify_prediction", "Test a registered prediction against an experiment. The "
+             "prediction's frozen model is re-evaluated at the experiment's measured length, so "
+             "an experiment within 20 % of the predicted length is a valid test. Reports the "
+             "z-score, the verdict and whether the test was blind.",
              {**obj, "properties": {"prediction_id": {"type": "string"}, "experiment_id": eid},
               "required": ["prediction_id", "experiment_id"]}, verify_prediction),
         Tool("request_experiment", "Ask the human to record a new experiment.",
