@@ -1,7 +1,5 @@
 # Galileo — your phone is the lab, the AI runs the experiment
 
-[![CI](https://github.com/Giochvanno/hackathon-meta-galileo/actions/workflows/ci.yml/badge.svg)](https://github.com/Giochvanno/hackathon-meta-galileo/actions/workflows/ci.yml)
-
 Film a simple experiment with a phone. Galileo measures the motion frame by frame with
 **SAM 3.1** (Meta Model API), fits competing physical models with honest uncertainties,
 and lets a **Muse Spark** agent run the scientific loop: choose the model the data supports,
@@ -83,7 +81,7 @@ Set `MODEL_AGENT=muse-wonder-1.0` in `.env` wherever it is available.
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 cp .env.example .env                                    # put your MODEL_API_KEY in it
-pytest -q                                               # 35 tests, no network needed
+pytest -q                                               # 30 tests, no network needed
 ```
 
 ffmpeg comes with `imageio-ffmpeg`; no system install needed.
@@ -139,5 +137,4 @@ tests/                               physics, SAM parsing, lab, agent loop and A
 
 ## Built during the hackathon
 
-All code in this repository was written during the hackathon, after the official kickoff:
-the first commit is dated Oct 30, 2026, and the commit history shows every step since.
+All code in this repository was written during the hackathon window (Oct 30 – Nov 4, 2026).
