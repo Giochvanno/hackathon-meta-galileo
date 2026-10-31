@@ -23,6 +23,9 @@ from .pendulum import PendulumResult, analyze_pendulum, local_g
 from .track import Track
 
 FOUR_PI2 = 4 * np.pi**2
+# A prediction is tested at the experiment's real length (cuts are never exact), but an
+# experiment far from the predicted length tests a different claim.
+MAX_LENGTH_MISMATCH = 0.20
 
 
 def _now() -> str:
@@ -124,11 +127,12 @@ class Lab:
     # ---- experiments -----------------------------------------------------
     def add_experiment(self, track_csv: str | Path, length_m: float, length_err_m: float,
                        t_start: float | None = None, t_end: float | None = None,
-                       note: str = "") -> str:
+                       note: str = "", amplitude_deg: float | None = None) -> str:
         exps = self.state["experiments"]
         eid = f"E{len(exps) + 1}"
         exps[eid] = {"id": eid, "track_csv": str(track_csv), "length_m": length_m,
                      "length_err_m": length_err_m, "t_start": t_start, "t_end": t_end,
+                     "amplitude_deg": amplitude_deg,
                      "note": note, "added_at": _now(), "seq": self._next_seq()}
         self.save()
         return eid
@@ -144,6 +148,7 @@ class Lab:
             e = self.experiment(eid)
             track = Track.from_csv(e["track_csv"]).clean().window(e["t_start"], e["t_end"])
             self._cache[eid] = analyze_pendulum(track, e["length_m"], e["length_err_m"],
+                                                amplitude_deg=e.get("amplitude_deg"),
                                                 g_reference=local_g(self.lat))
         return self._cache[eid]
 
@@ -212,8 +217,12 @@ class Lab:
         T_pred, s_pred = frozen.predict_T0(e["length_m"], e["length_err_m"])
         z = (r.T0 - T_pred) / float(np.hypot(s_pred, r.sigma_T0))
         blind = e["seq"] > p["seq"] and eid not in m["basis"]
+        mismatch = abs(e["length_m"] - p["length_m"]) / p["length_m"]
         if not r.reliable:
             verdict = "inconclusive (measurement unreliable)"
+        elif mismatch > MAX_LENGTH_MISMATCH:
+            verdict = (f"not a test of this prediction (length differs by {100 * mismatch:.0f} %, "
+                       f"limit {100 * MAX_LENGTH_MISMATCH:.0f} %)")
         elif abs(z) < 2:
             verdict = "confirmed"
         elif abs(z) < 3:
@@ -222,6 +231,8 @@ class Lab:
             verdict = "refuted"
         out = {"prediction": pid, "experiment": eid, "blind": blind,
                "length_predicted_for_m": p["length_m"], "length_used_m": e["length_m"],
+               "length_mismatch_pct": 100 * mismatch,
+               "note": "the frozen model is re-evaluated at the length actually used",
                "T0_predicted": T_pred, "sigma_T0_predicted": s_pred,
                "T0_measured": r.T0, "sigma_T0_measured": r.sigma_T0,
                "difference_pct": 100 * (r.T0 - T_pred) / T_pred, "z": float(z),
