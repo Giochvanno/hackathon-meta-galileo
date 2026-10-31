@@ -8,6 +8,7 @@
     python -m galileo.cli analyze  runs/NAME/track.csv --length 0.52     # re-fit, no video work
     python -m galileo.cli lab add  runs/NAME/track.csv --length 0.39 --length-err 0.003 --t-start 5
     python -m galileo.cli lab show
+    python -m galileo.cli render runs/NAME                           # overlay video of the SAM run
     python -m galileo.cli agent --goal "Measure g and test it with a prediction"
 """
 
@@ -208,6 +209,14 @@ def _analyze_and_report(a, track: Track, out: Path, video_path: Path | None, inf
     print(f"\n  {out / 'report.png'}\n  {out / 'result.json'}")
 
 
+# ------------------------------------------------------------------ render ---
+def cmd_render(a) -> None:
+    from .render import render_overlay
+
+    out = render_overlay(a.run_dir, a.out, trail_s=a.trail)
+    print(f"overlay video: {out}")
+
+
 # --------------------------------------------------------------- lab, agent ---
 def cmd_lab_add(a) -> None:
     from .lab import Lab
@@ -297,6 +306,12 @@ def main(argv: list[str] | None = None) -> None:
     an.add_argument("track_csv")
     fit_args(an)
     an.set_defaults(func=cmd_analyze)
+
+    rd = sub.add_parser("render", help="overlay video: SAM mask, trail and numbers on every frame")
+    rd.add_argument("run_dir", help="a runs/NAME folder produced by `pendulum` with SAM")
+    rd.add_argument("--out", help="default: RUN_DIR/overlay.mp4")
+    rd.add_argument("--trail", type=float, default=1.5, help="trail length, s")
+    rd.set_defaults(func=cmd_render)
 
     lb = sub.add_parser("lab", help="the lab notebook used by the agent")
     lsub = lb.add_subparsers(dest="lab_cmd", required=True)

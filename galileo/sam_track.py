@@ -54,6 +54,30 @@ def parse_sam_output(text: str, media: str = "video") -> tuple[list[Detection], 
     return dets, warnings
 
 
+def masks_by_frame(text: str, object_id: str | None = None) -> dict[int, tuple[int, int, np.ndarray]]:
+    """Per-frame mask of one object: {frame: (left, top, raster)} with raster as uint8 0/1.
+
+    Used to draw what SAM actually saw. object_id None takes the first object found.
+    """
+    from meta_sam_parser import CompletedOutcome, decode_mask_to_raster, video_segmentation_format
+
+    parser = video_segmentation_format().create_parser()
+    list(parser.push(text))
+    result = parser.finish(CompletedOutcome()).result
+    out: dict[int, tuple[int, int, np.ndarray]] = {}
+    for rec in result.records:
+        if rec.kind != "mask":
+            continue
+        if object_id is None:
+            object_id = rec.object_id
+        if rec.object_id != object_id:
+            continue
+        raster = np.frombuffer(decode_mask_to_raster(rec.mask), dtype=np.uint8)
+        out[rec.frame.frame_index] = (rec.bounds.left, rec.bounds.top,
+                                      raster.reshape(rec.mask.height, rec.mask.width))
+    return out
+
+
 def tracks_from_detections(dets: list[Detection], t: np.ndarray) -> dict[str, Track]:
     """One Track per SAM object id, aligned to the video's frame timeline."""
     n = len(t)
