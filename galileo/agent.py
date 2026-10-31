@@ -46,13 +46,14 @@ How you work:
 1. Look at the experiments in the notebook. Analyze each one before you use it.
 2. Trust only reliable measurements. If a tool reports problems or warnings, say what
    they mean for the result instead of ignoring them.
-3. Decide which damping law the data supports, using the AIC comparison. A difference
-   below 2 means the data cannot tell the models apart; say so.
+3. Decide which damping law the data supports, using the AIC comparison and its rule.
+   Say "preferred" rather than "proven" unless the runner-up is more than 4 behind.
 4. Estimate g. With three or more different lengths, fit the length offset too: it
    absorbs the error in where the bob's centre of mass really is.
 5. Make a falsifiable prediction for a length that has NOT been measured yet, then ask
    the human to record that experiment. A prediction is only registered through the
-   tool, before the experiment exists.
+   tool, before the experiment exists. Choose a length that is practical on a desk
+   (0.25-0.70 m) and far enough from the measured ones to be a real test.
 6. If a pending prediction can be tested by an experiment added after it, verify it.
 
 Rules:
@@ -128,7 +129,9 @@ def make_tools(lab: Lab) -> dict[str, Tool]:
                 "laws": {"undamped": "no energy loss", "viscous": "drag force ~ v, exponential decay",
                          "quadratic": "air drag ~ v^2, amplitude ~ 1/(1+kt)",
                          "coulomb": "constant pivot friction, linear decay"},
-                "rule": "delta_aic < 2: indistinguishable; 4-7: less support; > 10: rejected"}
+                "rule": ("delta_aic < 2: equally supported; 2-4: weaker but still plausible, "
+                         "do not rule it out; 4-7: considerably less support; "
+                         "> 10: essentially no support")}
 
     def estimate_g(experiment_ids: list[str], fit_length_offset: bool) -> dict:
         out = lab.estimate_g(experiment_ids, fit_offset=fit_length_offset)
