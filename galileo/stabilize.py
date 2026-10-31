@@ -47,16 +47,34 @@ def estimate_camera_motion(video_path: str | Path, max_corners: int = 400) -> np
     return np.stack(maps)
 
 
-def motion_summary(maps: np.ndarray) -> dict:
-    """How much the camera moved, in px and degrees (for the report and for warnings)."""
-    fwd = np.stack([np.linalg.inv(np.vstack([m, [0, 0, 1]]))[:2] for m in maps])
+def _h(m: np.ndarray) -> np.ndarray:
+    return np.vstack([m, [0.0, 0.0, 1.0]])
+
+
+def rereference(maps: np.ndarray, ref: int) -> np.ndarray:
+    """Make frame `ref` the reference instead of frame 0.
+
+    maps[i] takes frame-i pixels to frame-0 pixels and is a chain of frame-to-frame
+    estimates. inv(maps[ref]) @ maps[i] takes frame i to frame ref, and for i > ref it
+    depends only on the steps between ref and i. So a hand waving in front of the camera
+    before `ref` (which corrupts those early steps) no longer affects the measurement.
+    """
+    ref = int(min(max(ref, 0), len(maps) - 1))
+    inv_ref = np.linalg.inv(_h(maps[ref]))
+    return np.stack([(inv_ref @ _h(m))[:2] for m in maps])
+
+
+def motion_summary(maps: np.ndarray, start: int = 0, end: int | None = None) -> dict:
+    """How much the camera moved over frames [start, end), in px and degrees."""
+    maps = maps[start:end]
+    fwd = np.stack([np.linalg.inv(_h(m))[:2] for m in maps])
     ang = np.degrees(np.arctan2(fwd[:, 1, 0], fwd[:, 0, 0]))
     return {"shift_x_px": float(np.ptp(fwd[:, 0, 2])), "shift_y_px": float(np.ptp(fwd[:, 1, 2])),
             "rotation_deg": float(np.ptp(ang))}
 
 
 def apply_to_track(track: Track, maps: np.ndarray) -> Track:
-    """Map every tracked point into frame-0 coordinates."""
+    """Map every tracked point into the reference frame's coordinates."""
     n = min(len(track.t), len(maps))
     x, y = track.x.copy(), track.y.copy()
     m = maps[:n]

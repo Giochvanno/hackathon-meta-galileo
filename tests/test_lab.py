@@ -84,3 +84,21 @@ def test_notebook_persists(tmp_path):
     lab.add_experiment(write_track(tmp_path / "a.csv", 0.40), 0.40, 0.002, note="first")
     again = Lab(tmp_path / "lab.json")
     assert again.experiment("E1")["note"] == "first"
+
+def test_nearby_length_is_a_valid_test_far_length_is_not(tmp_path):
+    lab = Lab(tmp_path / "lab.json")
+    e1 = lab.add_experiment(write_track(tmp_path / "a.csv", 0.40), 0.40, 0.002)
+    lab.estimate_g([e1], fit_offset=False)
+    p = lab.predict(0.60, length_err_m=0.003)
+    near = lab.add_experiment(write_track(tmp_path / "b.csv", 0.619, seed=4), 0.619, 0.003)
+    v = lab.verify(p["id"], near)
+    assert v["verdict"] == "confirmed" and v["blind"] and v["length_mismatch_pct"] < 4
+    far = lab.add_experiment(write_track(tmp_path / "c.csv", 0.30, seed=5), 0.30, 0.003)
+    assert lab.verify(p["id"], far)["verdict"].startswith("not a test")
+
+
+def test_amplitude_given_per_experiment(tmp_path):
+    lab = Lab(tmp_path / "lab.json")
+    e1 = lab.add_experiment(write_track(tmp_path / "a.csv", 0.40), 0.40, 0.002, amplitude_deg=9.0)
+    r = lab.analyze(e1)
+    assert r.amplitude_source == "user" and abs(r.amplitude_deg - 9.0) < 1e-9

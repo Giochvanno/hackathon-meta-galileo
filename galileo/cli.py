@@ -109,6 +109,15 @@ def _sam_track(a, video_path: Path, t: np.ndarray, info: dict, out: Path,
     return tr
 
 
+def _reference_frame(a, t: np.ndarray) -> int:
+    """The frame the measurement is expressed in: the SAM prompt frame, else --t-start."""
+    if getattr(a, "prompt_frame", 0):
+        return int(a.prompt_frame)
+    if a.t_start is not None:
+        return int(min(np.searchsorted(t, a.t_start), len(t) - 1))
+    return 0
+
+
 def cmd_pendulum(a) -> None:
     out = Path(a.out or Path("runs") / Path(a.video).stem)
     video_path, t, info = vid.prepare(a.video, out, refresh=a.refresh)
@@ -119,11 +128,18 @@ def cmd_pendulum(a) -> None:
     if not a.no_stabilize:
         from .stabilize import load_or_estimate, motion_summary
 
+        from .stabilize import rereference
+
         maps = load_or_estimate(video_path, out / "camera_motion.npy", refresh=a.refresh)
-        info["camera_motion"] = motion_summary(maps)
+        # Reference = a frame after the release, so a hand in the first seconds is ignored.
+        ref = _reference_frame(a, t)
+        maps = rereference(maps, ref)
+        end = int(np.searchsorted(t, a.t_end)) if a.t_end is not None else None
+        info["camera_motion"] = motion_summary(maps, ref, end)
+        info["reference_frame"] = ref
         cm = info["camera_motion"]
         print(f"camera moved: {cm['shift_x_px']:.1f} px x, {cm['shift_y_px']:.1f} px y, "
-              f"{cm['rotation_deg']:.2f} deg -> compensated", file=sys.stderr)
+              f"{cm['rotation_deg']:.2f} deg after frame {ref} -> compensated", file=sys.stderr)
     if a.tracker == "opencv":
         from .cv_track import track_moving_blob
 
@@ -164,8 +180,11 @@ def _analyze_and_report(a, track: Track, out: Path, video_path: Path | None, inf
     (out / "result.json").write_text(json.dumps(payload, indent=2, default=float))
     fit_report(work, res, out / "report.png")
     if video_path is not None:
-        mid = int(np.nanargmin(np.abs(track.t - track.t[len(track.t) // 2])))
-        overlay(vid.read_frame(video_path, mid), work, res, out / "overlay.png")
+        # Stabilized positions live in the reference frame's coordinates: draw them on it.
+        frame_i = info.get("reference_frame")
+        if frame_i is None:
+            frame_i = int(np.nanargmin(np.abs(track.t - track.t[len(track.t) // 2])))
+        overlay(vid.read_frame(video_path, frame_i), work, res, out / "overlay.png")
 
     print()
     if not res.reliable:
@@ -194,7 +213,8 @@ def cmd_lab_add(a) -> None:
     from .lab import Lab
 
     lab = Lab(a.lab)
-    eid = lab.add_experiment(a.track_csv, a.length, a.length_err, a.t_start, a.t_end, a.note)
+    eid = lab.add_experiment(a.track_csv, a.length, a.length_err, a.t_start, a.t_end, a.note,
+                             amplitude_deg=a.amplitude_deg)
     r = lab.analyze(eid)
     flag = "reliable" if r.reliable else "UNRELIABLE: " + "; ".join(r.problems)
     print(f"added {eid}: L = {a.length:.3f} ± {a.length_err:.3f} m, "
@@ -231,7 +251,8 @@ def cmd_agent(a) -> None:
     if not lab.state["experiments"]:
         raise RuntimeError("the lab notebook is empty: add an experiment with `lab add` first")
     out = run_agent(lab, a.goal, model=a.model, reasoning_effort=a.effort, max_turns=a.max_turns)
-    print("\n" + "=" * 70 + "\n" + (out["final_text"] or "(no final report)"))
+    if not out["final_text"]:
+        print("\n(the agent ended without a final report)")
 
 
 # ------------------------------------------------------------------- main ---
@@ -286,6 +307,8 @@ def main(argv: list[str] | None = None) -> None:
     la.add_argument("--t-start", type=float)
     la.add_argument("--t-end", type=float)
     la.add_argument("--note", default="")
+    la.add_argument("--amplitude-deg", type=float,
+                    help="swing angle if known (when the camera was not square to the swing)")
     la.add_argument("--lab", default="runs/lab.json")
     la.set_defaults(func=cmd_lab_add)
     ls = lsub.add_parser("show", help="print the notebook")
