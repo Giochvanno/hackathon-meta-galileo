@@ -2,8 +2,9 @@
 
 Film a simple experiment with a phone. Galileo measures the motion frame by frame with
 **SAM 3.1** (Meta Model API), fits competing physical models with honest uncertainties,
-and (next) lets a **Muse** agent choose the best model, predict a new experiment, and verify
-the prediction against a new recording.
+and lets a **Muse Spark** agent run the scientific loop: choose the model the data supports,
+estimate g, register a falsifiable prediction for the next experiment, and verify it
+against a new recording.
 
 > Built for the Meta Global AI Developer Hackathon (Indie track), Oct 30 – Nov 4, 2026.
 
@@ -31,13 +32,56 @@ the prediction against a new recording.
 On a synthetic video with known physics (13°, damped, motion blur, a decoy object):
 `g = 9.797 ± 0.038 m/s²` vs true `9.7975`.
 
+**First real measurement** (phone video, AA battery on a cable, SAM 3.1 point prompt):
+`g = 9.92 ± 0.25 m/s²` vs local `9.7975` (+1.2 %, 0.5 σ). The uncertainty is almost all
+from the length, measured by eye; the period itself is known to 0.04 %.
+
+![First real run](docs/first_real_run.png)
+
+## The experimenter agent (day 2)
+
+Muse Spark drives the lab through seven tools, each a tested Python function on a JSON lab
+notebook (`runs/lab.json`):
+
+| Tool | What it does |
+|---|---|
+| `list_experiments` | experiments, predictions and the current model |
+| `analyze_experiment` | period by two methods, amplitude, damping, T0, reliability problems |
+| `compare_damping_models` | four damping laws, ΔAIC and Akaike weights |
+| `estimate_g` | weighted fit of T0² against L (with a length offset once there are 3+ lengths) |
+| `predict_period` | registers a frozen, falsifiable prediction for a new length |
+| `verify_prediction` | z-score and verdict; marks whether the test was blind |
+| `request_experiment` | asks the human for the next recording |
+
+Design rules that keep it honest:
+
+* **The model does no arithmetic.** Every number it reports comes from a tool result.
+* **The textbook g is hidden from the model,** so its estimate cannot drift toward it.
+* **Pre-registration.** A prediction copies the model it was made from. It only counts as a
+  blind test if the experiment was added to the notebook after it, and was not used to
+  build the model.
+* **Errors are data.** A failing tool returns the error to the model, which can correct itself.
+* Every run writes a step-by-step JSONL log with tokens and cost.
+
+```bash
+python -m galileo.cli lab add runs/my_pendulum/track.csv --length 0.39 --length-err 0.003 --t-start 5
+python -m galileo.cli agent            # the agent measures, decides, predicts, asks for an experiment
+# ...record the experiment it asked for, run `pendulum` on it, `lab add` it, then:
+python -m galileo.cli agent            # the agent verifies its own prediction
+python -m galileo.cli lab show
+```
+
+Muse Wonder is not available to this account (the API returns 404; the organizers confirmed
+it is outside the hackathon credits and not required), so the agent runs on `muse-spark-1.3`.
+Set `MODEL_AGENT=muse-wonder-1.0` in `.env` wherever it is available.
+
 ## Setup
 
 ```bash
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 cp .env.example .env                                    # put your MODEL_API_KEY in it
-pytest -q                                               # 18 tests, no network needed
+pytest -q                                               # 30 tests, no network needed
 ```
 
 ffmpeg comes with `imageio-ffmpeg`; no system install needed.
@@ -81,10 +125,14 @@ galileo/
   sam_track.py   SAM wire output -> mask centroids -> per-object tracks
   cv_track.py    model-free fallback tracker (median background subtraction)
   pendulum.py    model fits, AIC, zero crossings, arc fit, corrections, g, predictions
+  stabilize.py   camera-motion compensation
+  lab.py         lab notebook: experiments, T0²-vs-L fit, frozen predictions, blind verification
+  agent.py       Muse Spark tool loop, tools, run logs with token cost
   report.py      report.png and overlay.png
   cli.py         probe / pendulum / analyze
 scripts/make_synthetic_pendulum.py   video with known g for end-to-end tests
-tests/                               physics, SAM parsing, API client against a fake server
+scripts/check_models.py              which models this key can use, and whether they call tools
+tests/                               physics, SAM parsing, lab, agent loop and API client against fake servers
 ```
 
 ## Built during the hackathon

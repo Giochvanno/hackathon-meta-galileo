@@ -6,6 +6,9 @@
     python -m galileo.cli pendulum VIDEO --length 0.52 --point 280,845 --prompt-frame 150
     python -m galileo.cli pendulum VIDEO --length 0.52 --tracker opencv  # no API, sanity check
     python -m galileo.cli analyze  runs/NAME/track.csv --length 0.52     # re-fit, no video work
+    python -m galileo.cli lab add  runs/NAME/track.csv --length 0.39 --length-err 0.003 --t-start 5
+    python -m galileo.cli lab show
+    python -m galileo.cli agent --goal "Measure g and test it with a prediction"
 """
 
 from __future__ import annotations
@@ -186,6 +189,51 @@ def _analyze_and_report(a, track: Track, out: Path, video_path: Path | None, inf
     print(f"\n  {out / 'report.png'}\n  {out / 'result.json'}")
 
 
+# --------------------------------------------------------------- lab, agent ---
+def cmd_lab_add(a) -> None:
+    from .lab import Lab
+
+    lab = Lab(a.lab)
+    eid = lab.add_experiment(a.track_csv, a.length, a.length_err, a.t_start, a.t_end, a.note)
+    r = lab.analyze(eid)
+    flag = "reliable" if r.reliable else "UNRELIABLE: " + "; ".join(r.problems)
+    print(f"added {eid}: L = {a.length:.3f} ± {a.length_err:.3f} m, "
+          f"T0 = {r.T0:.4f} ± {r.sigma_T0:.4f} s ({flag})")
+
+
+def cmd_lab_show(a) -> None:
+    from .lab import Lab
+
+    lab = Lab(a.lab)
+    for e in lab.state["experiments"].values():
+        r = lab.analyze(e["id"])
+        print(f"{e['id']}: L = {e['length_m']:.3f} ± {e['length_err_m']:.3f} m  "
+              f"T0 = {r.T0:.4f} ± {r.sigma_T0:.4f} s  g = {r.g:.3f} ± {r.sigma_g:.3f}  "
+              f"{'ok' if r.reliable else 'UNRELIABLE'}  {e['note']}")
+    m = lab.state["model"]
+    if m:
+        offset = f", length offset {m['offset_m'] * 100:+.1f} cm" if m["fit_offset"] else ""
+        print(f"model: g = {m['g']:.4f} ± {m['sigma_g']:.4f} m/s² from {m['basis']}{offset}")
+    for p in lab.state["predictions"].values():
+        v = p["verified_by"]
+        tail = (f"-> {v['verdict']} by {v['experiment']} (measured {v['T0_measured']:.4f} s, "
+                f"z = {v['z']:+.2f}, {'blind' if v['blind'] else 'NOT blind'})" if v else "-> pending")
+        print(f"{p['id']}: L = {p['length_m']:.3f} m, T0 = {p['T0']:.4f} ± {p['sigma_T0']:.4f} s {tail}")
+    for q in lab.state["requests"]:
+        print(f"request: L = {q['length_m']:.3f} m: {q['instructions']}")
+
+
+def cmd_agent(a) -> None:
+    from .agent import run_agent
+    from .lab import Lab
+
+    lab = Lab(a.lab)
+    if not lab.state["experiments"]:
+        raise RuntimeError("the lab notebook is empty: add an experiment with `lab add` first")
+    out = run_agent(lab, a.goal, model=a.model, reasoning_effort=a.effort, max_turns=a.max_turns)
+    print("\n" + "=" * 70 + "\n" + (out["final_text"] or "(no final report)"))
+
+
 # ------------------------------------------------------------------- main ---
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="galileo")
@@ -229,12 +277,37 @@ def main(argv: list[str] | None = None) -> None:
     fit_args(an)
     an.set_defaults(func=cmd_analyze)
 
+    lb = sub.add_parser("lab", help="the lab notebook used by the agent")
+    lsub = lb.add_subparsers(dest="lab_cmd", required=True)
+    la = lsub.add_parser("add", help="add a measured experiment (a track.csv)")
+    la.add_argument("track_csv")
+    la.add_argument("--length", type=float, required=True, help="pivot to bob centre, m")
+    la.add_argument("--length-err", type=float, default=0.003)
+    la.add_argument("--t-start", type=float)
+    la.add_argument("--t-end", type=float)
+    la.add_argument("--note", default="")
+    la.add_argument("--lab", default="runs/lab.json")
+    la.set_defaults(func=cmd_lab_add)
+    ls = lsub.add_parser("show", help="print the notebook")
+    ls.add_argument("--lab", default="runs/lab.json")
+    ls.set_defaults(func=cmd_lab_show)
+
+    ag = sub.add_parser("agent", help="let Muse run the experiment loop")
+    ag.add_argument("--goal", default="Measure g from the experiments in the notebook, choose "
+                    "the damping model, and design a falsifiable prediction for the next "
+                    "experiment. If a pending prediction can be tested, test it.")
+    ag.add_argument("--model", help="default: MODEL_AGENT or muse-spark-1.3")
+    ag.add_argument("--effort", help="reasoning effort, default: AGENT_REASONING or high")
+    ag.add_argument("--max-turns", type=int, default=16)
+    ag.add_argument("--lab", default="runs/lab.json")
+    ag.set_defaults(func=cmd_agent)
+
     a = p.parse_args(argv)
     from .sam_track import NoMovingObjectError
 
     try:
         a.func(a)
-    except (NoMovingObjectError, FileNotFoundError, RuntimeError) as e:
+    except (NoMovingObjectError, FileNotFoundError, RuntimeError, KeyError, ValueError) as e:
         print(f"\nERROR: {e}", file=sys.stderr)
         raise SystemExit(2)
 
