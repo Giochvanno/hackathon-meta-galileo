@@ -213,7 +213,8 @@ def cmd_lab_add(a) -> None:
     from .lab import Lab
 
     lab = Lab(a.lab)
-    eid = lab.add_experiment(a.track_csv, a.length, a.length_err, a.t_start, a.t_end, a.note)
+    eid = lab.add_experiment(a.track_csv, a.length, a.length_err, a.t_start, a.t_end, a.note,
+                             amplitude_deg=a.amplitude_deg)
     r = lab.analyze(eid)
     flag = "reliable" if r.reliable else "UNRELIABLE: " + "; ".join(r.problems)
     print(f"added {eid}: L = {a.length:.3f} ± {a.length_err:.3f} m, "
@@ -250,7 +251,8 @@ def cmd_agent(a) -> None:
     if not lab.state["experiments"]:
         raise RuntimeError("the lab notebook is empty: add an experiment with `lab add` first")
     out = run_agent(lab, a.goal, model=a.model, reasoning_effort=a.effort, max_turns=a.max_turns)
-    print("\n" + "=" * 70 + "\n" + (out["final_text"] or "(no final report)"))
+    if not out["final_text"]:
+        print("\n(the agent ended without a final report)")
 
 
 # ------------------------------------------------------------------- main ---
@@ -305,6 +307,8 @@ def main(argv: list[str] | None = None) -> None:
     la.add_argument("--t-start", type=float)
     la.add_argument("--t-end", type=float)
     la.add_argument("--note", default="")
+    la.add_argument("--amplitude-deg", type=float,
+                    help="swing angle if known (when the camera was not square to the swing)")
     la.add_argument("--lab", default="runs/lab.json")
     la.set_defaults(func=cmd_lab_add)
     ls = lsub.add_parser("show", help="print the notebook")
