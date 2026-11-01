@@ -96,15 +96,67 @@ class Look:
     model: str = ""
     usage: dict = field(default_factory=dict)
     sampled_frames: list[int] = field(default_factory=list)
+    model_point_px: tuple[int, int] | None = None  # where Spark pointed, before snapping
+    point_refined: bool = False
 
     def to_dict(self) -> dict:
         return dict(self.__dict__)
 
 
-def sample_frames(n_frames: int, k: int = 8, end_fraction: float = 0.7) -> list[int]:
-    """Frames spread over the first part of the video (the release is never at the end)."""
-    last = max(1, int(n_frames * end_fraction))
-    return sorted({int(round(v)) for v in np.linspace(0, last - 1, k)})
+def sample_frames(n_frames: int, k: int = 10, end_fraction: float = 0.7) -> list[int]:
+    """Frames for the assistant: dense at the start, where the release usually is.
+
+    Half of them cover the first 15 % of the video (about one frame every half second in
+    a 30 s recording), the rest are spread up to 70 %.
+    """
+    early = np.linspace(0, max(1, int(n_frames * 0.15)), k // 2, endpoint=False)
+    late = np.linspace(int(n_frames * 0.15), max(1, int(n_frames * end_fraction)) - 1, k - k // 2)
+    return sorted({int(round(v)) for v in np.concatenate([early, late])})
+
+
+def refine_point(video_path: str | Path, frame_index: int, point: tuple[int, int],
+                 search_px: int = 90, samples: int = 40) -> tuple[tuple[int, int], bool]:
+    """Snap the assistant's point to the centre of the moving object next to it.
+
+    Grounding on a 0-1000 grid is coarse: on a 1280-px frame one grid step is 1.3 px, but
+    the model often points at the edge of a ball rather than its centre, and a point just
+    outside the object would make SAM segment the wrong thing. The object moves and the
+    background does not, so the median over the video is the empty scene; the object is
+    what differs from it near the point. Returns (point, refined?).
+    """
+    from . import video as vid
+
+    cap = cv2.VideoCapture(str(video_path))
+    n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
+    cap.release()
+    frames = [vid.read_frame(video_path, int(i)) for i in np.linspace(0, n - 1, samples)]
+    bg = np.median(np.stack(frames), axis=0).astype(np.int16)
+    fr = vid.read_frame(video_path, frame_index).astype(np.int16)
+    h, w = fr.shape[:2]
+    x, y = point
+    x0, x1 = max(0, x - search_px), min(w, x + search_px + 1)
+    y0, y1 = max(0, y - search_px), min(h, y + search_px + 1)
+    diff = np.abs(fr[y0:y1, x0:x1] - bg[y0:y1, x0:x1]).max(axis=2).astype(np.uint8)
+    _, mask = cv2.threshold(diff, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    if diff.max() < 25:
+        return point, False
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    k, labels, stats, cents = cv2.connectedComponentsWithStats(mask)
+    if k <= 1:
+        return point, False
+    px, py = x - x0, y - y0
+    best, best_d = None, np.inf
+    for j in range(1, k):
+        if stats[j, cv2.CC_STAT_AREA] < 30:
+            continue
+        inside = labels[min(py, labels.shape[0] - 1), min(px, labels.shape[1] - 1)] == j
+        d = 0.0 if inside else float(np.hypot(*(cents[j] - (px, py))))
+        if d < best_d:
+            best, best_d = j, d
+    if best is None or best_d > search_px * 0.6:
+        return point, False
+    cx, cy = cents[best]
+    return (int(round(cx + x0)), int(round(cy + y0))), True
 
 
 def _jpeg_data_url(frame: np.ndarray, max_side: int = 960) -> str:
@@ -171,11 +223,18 @@ def look(video_path: str | Path, t: np.ndarray, frames_idx: list[int] | None = N
     floor = None
     if data.get("floor_y") is not None:
         floor = to_px({"x": 0, "y": data["floor_y"]}, w, h)[1]
+    point = to_px(data["object_point"], w, h)
+    refined = False
+    try:
+        point, refined = refine_point(video_path, idx[of], point)
+    except Exception:  # noqa: BLE001 - refinement is a bonus; keep the model's point
+        pass
     u = getattr(resp, "usage", None)
     usage = {"input_tokens": getattr(u, "input_tokens", 0),
              "output_tokens": getattr(u, "output_tokens", 0)} if u else {}
     return Look(experiment=data["experiment"], object_name=data["object_name"],
-                frame_index=idx[of], point_px=to_px(data["object_point"], w, h),
+                frame_index=idx[of], point_px=point, model_point_px=to_px(data["object_point"], w, h),
+                point_refined=refined,
                 release_index=idx[rf], t_release=float(t[idx[rf]]), pivot_px=pivot,
                 floor_y_px=floor, issues=list(data.get("issues", [])),
                 confidence=data["confidence"], summary=data.get("summary", ""), model=model,
@@ -186,6 +245,8 @@ def annotate(frame: np.ndarray, lk: Look, path: str | Path) -> Path:
     """What the assistant saw: the object point, the pivot or floor, and its notes."""
     out = frame.copy()
     x, y = lk.point_px
+    if lk.model_point_px and lk.point_refined:
+        cv2.drawMarker(out, tuple(lk.model_point_px), (255, 255, 255), cv2.MARKER_SQUARE, 12, 1)
     cv2.circle(out, (x, y), 18, (52, 104, 235), 3, cv2.LINE_AA)
     cv2.drawMarker(out, (x, y), (52, 104, 235), cv2.MARKER_CROSS, 14, 2)
     if lk.pivot_px:
@@ -193,12 +254,21 @@ def annotate(frame: np.ndarray, lk: Look, path: str | Path) -> Path:
         cv2.line(out, lk.pivot_px, (x, y), (214, 120, 42), 1, cv2.LINE_AA)
     if lk.floor_y_px is not None:
         cv2.line(out, (0, lk.floor_y_px), (out.shape[1], lk.floor_y_px), (214, 120, 42), 2)
-    lines = [f"Muse Spark: {lk.experiment}, track '{lk.object_name}' ({lk.confidence})"]
-    lines += [f"- {i['kind'].replace('_', ' ')}: {i['detail']}"[:110] for i in lk.issues[:4]]
+    import textwrap
+
+    width = out.shape[1]
+    scale = 0.5 if width < 1000 else 0.65
+    chars = int(width / (11 * scale / 0.5))  # rough characters per line at this font size
+    lines = textwrap.wrap(f"Muse Spark: {lk.experiment}, track '{lk.object_name}' "
+                          f"({lk.confidence} confidence)", chars)
+    for i in lk.issues[:4]:
+        lines += textwrap.wrap(f"- {i['kind'].replace('_', ' ')}: {i['detail']}", chars)
+    step = int(26 * scale / 0.5)
+    band = out[: 12 + step * len(lines)].astype(np.float32)
+    out[: 12 + step * len(lines)] = (band * 0.35).astype(np.uint8)  # dark band under the text
     for k, text in enumerate(lines):
-        org = (16, 34 + 30 * k)
-        cv2.putText(out, text, org, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 4, cv2.LINE_AA)
-        cv2.putText(out, text, org, cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1, cv2.LINE_AA)
+        cv2.putText(out, text, (12, 8 + step * (k + 1) - 6), cv2.FONT_HERSHEY_SIMPLEX, scale,
+                    (255, 255, 255), 1, cv2.LINE_AA)
     path = Path(path)
     cv2.imwrite(str(path), out)
     return path
@@ -210,6 +280,8 @@ def look_cached(video_path: Path, t: np.ndarray, out: Path, refresh: bool = Fals
         d = json.loads(cache.read_text())
         d["point_px"] = tuple(d["point_px"])
         d["pivot_px"] = tuple(d["pivot_px"]) if d.get("pivot_px") else None
+        if d.get("model_point_px"):
+            d["model_point_px"] = tuple(d["model_point_px"])
         return Look(**d)
     lk = look(video_path, t)
     cache.write_text(json.dumps(lk.to_dict(), indent=2))

@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from openai import OpenAI
 
-from galileo.assistant import SCHEMA, look, sample_frames, to_px
+from galileo.assistant import SCHEMA, annotate, look, refine_point, sample_frames, to_px
 from galileo.synth import Scene, render
 
 ANSWER = {"experiment": "pendulum", "object_name": "white ball", "object_frame": 1,
@@ -79,8 +79,25 @@ def test_grid_to_pixels_is_clamped():
 
 
 def test_frames_come_from_the_first_part_of_the_video():
-    idx = sample_frames(1000, k=8)
-    assert len(idx) == 8 and idx[0] == 0 and idx[-1] < 700
+    idx = sample_frames(1000, k=10)
+    assert len(idx) == 10 and idx[0] == 0 and idx[-1] < 700
+    assert sum(i < 150 for i in idx) == 5  # dense where the release usually is
+
+
+def test_point_on_the_edge_of_the_bob_snaps_to_its_centre(tmp_path):
+    s = Scene(width=640, height=480, px_per_m=800, length_m=0.4, bob_radius_px=18, seconds=2.0,
+              decoy=False, seed=4)
+    truth = render(s, tmp_path / "v.mp4")
+    x, y = truth["bob_xy"][15]
+    (rx, ry), ok = refine_point(tmp_path / "v.mp4", 15, (int(x), int(y - 20)))  # just above it
+    assert ok and abs(rx - x) < 3 and abs(ry - y) < 3
+
+
+def test_annotation_draws_without_errors(client, video, tmp_path):
+    path, t = video
+    lk = look(path, t, frames_idx=[0, 10, 20], client=client, model="muse-spark-1.3")
+    frame = np.full((240, 320, 3), 128, np.uint8)
+    assert annotate(frame, lk, tmp_path / "look.png").exists()
 
 
 def test_look_sends_frames_and_returns_pixels(client, video):
@@ -93,7 +110,7 @@ def test_look_sends_frames_and_returns_pixels(client, video):
                for p in parts if p["type"] == "input_image")
     assert body["text"]["format"]["type"] == "json_schema" and body["text"]["format"]["strict"]
     assert body["store"] is False
-    assert lk.frame_index == 10 and lk.point_px == to_px({"x": 500, "y": 750}, 320, 240)
+    assert lk.frame_index == 10 and lk.model_point_px == to_px({"x": 500, "y": 750}, 320, 240)
     assert lk.pivot_px == to_px({"x": 500, "y": 120}, 320, 240) and lk.floor_y_px is None
     assert lk.issues[0]["kind"] == "low_contrast" and lk.usage["input_tokens"] == 5000
 
