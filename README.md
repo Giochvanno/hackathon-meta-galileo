@@ -17,13 +17,13 @@ tracked by SAM 3.1, analysed by the code in this repository, judged by the Muse 
 
 | | Value | Reference |
 |---|---|---|
-| **g from three lengths** (T0² vs L, with a length-offset term) | **9.782 ± 0.127 m/s²** | 9.7975 m/s² for Busan (−0.16 %, 0.1 σ) |
-| **Blind predictions, pendulum** | **2 of 2 confirmed** (z = 0.76 and 0.73) | a third (P3) is registered and waiting |
+| **g from four lengths** (T0² vs L, with a length-offset term) | **9.821 ± 0.126 m/s²** | 9.7975 m/s² for Busan (+0.24 %, 0.2 σ) |
+| **Blind predictions, pendulum** | **2 confirmed, 1 in tension** (z = 0.76, 0.73, −2.17) | P4 is registered and waiting |
 | **Blind prediction, bouncing ball** | **B1 failed** on 2 of 3 drops | the instrument found why: hand releases from 31–34 cm, not 30 |
 | Period precision from one 34 s video | ± 0.0002 s (0.02 %) | |
 | SAM 3.1 vs a model-free OpenCV tracker on the same video | periods agree to 0.05 % | |
 | Cost | ≈ $0.20 per video (SAM), ≈ $0.035 per agent run | |
-| Tests | 51, run in CI on every push | |
+| Tests | 58, run in CI on every push | |
 
 ### The experiments
 
@@ -32,6 +32,7 @@ tracked by SAM 3.1, analysed by the code in this repository, judged by the Muse 
 | E1 | AA battery tied to a USB cable, length by eye | 0.390 ± 0.010 m | 1.2460 ± 0.0005 s | 9.92 ± 0.25 |
 | E2 | golf ball on sewing thread, tape-measured | 0.619 ± 0.003 m | 1.5852 ± 0.0008 s | 9.725 ± 0.048 |
 | E3 | golf ball on thread, released at ~19°, 31 full swings | 0.289 ± 0.003 m | 1.0868 ± 0.0002 s | 9.650 ± 0.100 |
+| E4 | golf ball on thread, ~7°, 23 full swings, white ball in front of a white panel | 0.489 ± 0.003 m | 1.3982 ± 0.0003 s | 9.875 ± 0.061 |
 
 Damping: the AIC comparison prefers quadratic air drag for the golf ball (E3: the runner-up,
 viscous damping, is 145 AIC units behind) and viscous damping for the battery on a stiff cable,
@@ -47,11 +48,21 @@ cut (a thread is never cut exactly to plan).
 |---|---|---|---|---|---|---|---|
 | P1 | E1 only (g = 9.92 ± 0.25) | 0.600 m | E2 (0.619 m) | 1.5697 ± 0.0205 s | 1.5852 ± 0.0008 s | +0.76 | **confirmed, blind** |
 | P2 | E1 + E2 (g = 9.731 ± 0.047) | 0.300 m | E3 (0.289 m) | 1.0822 ± 0.0062 s | 1.0868 ± 0.0002 s | +0.73 | **confirmed, blind** |
-| P3 | E1 + E2 + E3 (with length offset) | 0.500 m | — | 1.4254 ± 0.0053 s | — | — | pending |
+| P3 | E1 + E2 + E3 (with length offset) | 0.500 m | E4 (0.489 m) | 1.4097 ± 0.0053 s | 1.3982 ± 0.0003 s | −2.17 | **tension** |
+| P4 | E1 – E4 (with length offset) | 0.700 m | — | 1.6806 ± 0.0055 s | — | — | pending |
 
-The agent found the second test on its own: it noticed that E3 was added after P2, that its
-length was within the allowed 20 % of the plan, verified P2, refitted g with the new length,
-and registered P3 (8 turns, $0.035).
+The agent found each test on its own: it noticed that the new experiment was added after the
+pending prediction and that its length was within the allowed 20 % of the plan, verified it,
+refitted g with the new length, and registered the next prediction (8 turns, $0.035–0.05).
+
+**P3 is in tension (z = −2.2), and the data say why.** The period of every run is known to
+0.02 %; the length is not. With the local g, the measured periods imply lengths of 623.6,
+293.1 and 485.1 mm for E2–E4, against 619.0, 288.7 and 489.0 mm on the tape: differences of
++4.6, +4.4 and −3.9 mm, while each length was entered as ± 3 mm. The four-length fit agrees
+(χ² = 5.5 for 2 degrees of freedom, larger than expected). Where exactly the thread leaves the
+tape, and where the centre of the ball is, is uncertain by about 4–5 mm when the setup is
+rebuilt for every length; ± 3 mm was optimistic. The agent read it the same way: "record the
+0.70 m experiment to decide if the P3 tension is noise or bias in length scale."
 
 ## How the measurement works
 
@@ -175,6 +186,10 @@ not 30. The coefficient of restitution itself also differs from drop to drop (0.
 probably where and with what spin the ball hits the laminate). Drop 1 "agreed" partly by
 luck: it fell 31 cm but bounced lower.
 
+A check that is *not* blind, done after the verdict: re-evaluating B1's frozen e (0.8638) at the
+height measured from the pixels (which does not use the flight time) gives 0.4367 s for drop 2
+(measured 0.4386 s, +0.4 %) and 0.4524 s for drop 3 (measured 0.4558 s, +0.8 %).
+
 The physics held; the prediction's error bar did not. It counted ±5 mm of drop height and the
 fit error of e, while a hand release varies by centimetres and e varies by ±1.5 % between
 drops. The honest error bar for "drop it from 30 cm by hand" is about ±0.016 s (±2 cm of height
@@ -266,7 +281,7 @@ verdict was computed or shown, so the length could not be chosen to fit the pred
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 cp .env.example .env                                    # put your MODEL_API_KEY in it
-pytest -q                                               # 51 tests, no network needed
+pytest -q                                               # 58 tests, no network needed
 ```
 
 ffmpeg comes with `imageio-ffmpeg`; no system install needed.
@@ -332,4 +347,4 @@ the first commit is dated Oct 30, 2026, and the commit history shows every step 
 |---|---|
 | Oct 30 | SAM 3.1 pipeline, physics fits, synthetic validation; first real run (battery, g = 9.92 ± 0.25) |
 | Oct 31 | Muse Spark agent with 7 tools and a lab notebook; golf-ball pendulum E2; **P1 confirmed blind**; overlay video; CI |
-| Nov 1 | E3 filmed; **the agent verified P2 blind by itself**; g from three lengths 9.782 ± 0.127; bouncing-ball module; first real drop e = 0.8638 ± 0.0004 with rolling-shutter correction; prediction B1 registered and **failed on 2 of 3 drops** (hand release 31–34 cm, measured from the video) |
+| Nov 1 | E3 filmed; **the agent verified P2 blind by itself**; E4: P3 in tension (z = −2.2, traced to ±4–5 mm length errors); g from three lengths 9.782 ± 0.127; bouncing-ball module; first real drop e = 0.8638 ± 0.0004 with rolling-shutter correction; prediction B1 registered and **failed on 2 of 3 drops** (hand release 31–34 cm, measured from the video) |

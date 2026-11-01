@@ -102,3 +102,14 @@ def test_amplitude_given_per_experiment(tmp_path):
     e1 = lab.add_experiment(write_track(tmp_path / "a.csv", 0.40), 0.40, 0.002, amplitude_deg=9.0)
     r = lab.analyze(e1)
     assert r.amplitude_source == "user" and abs(r.amplitude_deg - 9.0) < 1e-9
+
+
+def test_request_is_marked_done_by_a_later_experiment(tmp_path):
+    lab = Lab(tmp_path / "lab.json")
+    lab.add_experiment(write_track(tmp_path / "a.csv", 0.40), 0.40, 0.002)
+    req = lab.request(0.30, "shorten to 30 cm")
+    assert lab.request_done_by(req) is None
+    lab.add_experiment(write_track(tmp_path / "b.csv", 0.62), 0.62, 0.002)  # far from 0.30
+    assert lab.request_done_by(req) is None
+    eid = lab.add_experiment(write_track(tmp_path / "c.csv", 0.289), 0.289, 0.003)
+    assert lab.request_done_by(req) == eid

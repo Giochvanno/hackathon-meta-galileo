@@ -41,8 +41,13 @@ def _background(path: str, n_frames: int, maps: np.ndarray | None,
 
 def track_moving_blob(video_path: str, t: np.ndarray, diff_threshold: int = 30,
                       min_area: int = 15, open_px: int = 5,
-                      maps: np.ndarray | None = None) -> Track:
-    """`maps` (from stabilize.py) warps frames to frame 0, so the result is already stabilized."""
+                      maps: np.ndarray | None = None,
+                      roi: tuple[int, int, int, int] | None = None) -> Track:
+    """`maps` (from stabilize.py) warps frames to frame 0, so the result is already stabilized.
+
+    `roi` = (left, top, right, bottom) in px: motion outside it is ignored (a hand at the
+    edge of the frame, a person walking in the background).
+    """
     n = len(t)
     bg = _background(str(video_path), n, maps)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (open_px, open_px))
@@ -56,6 +61,11 @@ def track_moving_blob(video_path: str, t: np.ndarray, diff_threshold: int = 30,
         diff = cv2.absdiff(cv2.GaussianBlur(_warp(frame, maps, i), (5, 5), 0), bg).max(axis=2)
         _, fg = cv2.threshold(diff, diff_threshold, 255, cv2.THRESH_BINARY)
         fg = cv2.morphologyEx(fg, cv2.MORPH_OPEN, kernel)
+        if roi is not None:
+            l, tp, r, b = roi
+            keep = np.zeros_like(fg)
+            keep[max(tp, 0):b, max(l, 0):r] = fg[max(tp, 0):b, max(l, 0):r]
+            fg = keep
         k, labels, stats, cents = cv2.connectedComponentsWithStats(fg)
         if k <= 1:
             continue

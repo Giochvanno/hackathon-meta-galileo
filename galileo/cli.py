@@ -1,5 +1,7 @@
 """Command line: video -> SAM 3.1 track -> period -> g.
 
+    python -m galileo.cli look     VIDEO                       # Muse Spark: what to track, from when
+    python -m galileo.cli pendulum VIDEO --length 0.52 --auto  # ...and use that as the SAM prompt
     python -m galileo.cli probe    VIDEO --prompts earbud "white earbud" earphone
     python -m galileo.cli pendulum VIDEO --length 0.52 --prompt "white earbud"
     python -m galileo.cli pendulum VIDEO --length 0.52 --point 640,410   # click instead of text
@@ -66,6 +68,32 @@ def cmd_probe(a) -> None:
     print("Pick the prompt with exactly one confident match on the bob.")
 
 
+# ------------------------------------------------------------------- look ---
+def cmd_look(a) -> None:
+    """Muse Spark looks at the video: what to track, from which frame, and what is wrong."""
+    from .assistant import annotate, look_cached
+
+    out = Path(a.out or Path("runs") / Path(a.video).stem)
+    video_path, t, info = vid.prepare(a.video, out)
+    lk = look_cached(video_path, t, out, refresh=a.refresh)
+    png = annotate(vid.read_frame(video_path, lk.frame_index), lk, out / "look.png")
+    print(f"  experiment: {lk.experiment}")
+    print(f"  object:     {lk.object_name}, at {lk.point_px[0]},{lk.point_px[1]} on frame "
+          f"{lk.frame_index} (t = {t[lk.frame_index]:.2f} s), confidence {lk.confidence}")
+    print(f"  released:   around frame {lk.release_index} (t = {lk.t_release:.2f} s)")
+    if lk.pivot_px:
+        print(f"  pivot:      {lk.pivot_px[0]},{lk.pivot_px[1]}")
+    if lk.floor_y_px is not None:
+        print(f"  floor:      y = {lk.floor_y_px}")
+    for i in lk.issues:
+        print(f"  ! {i['kind'].replace('_', ' ')}: {i['detail']}")
+    print(f"  {lk.summary}")
+    cmd = "bounce" if lk.experiment == "bouncing ball" else "pendulum"
+    print(f"\n  next: python -m galileo.cli {cmd} {a.video} --point {lk.point_px[0]},{lk.point_px[1]} "
+          f"--prompt-frame {lk.frame_index} --t-start {t[lk.frame_index]:.2f} ..."
+          f"\n  (or simply add --auto to `{cmd}`)\n  {png}")
+
+
 # --------------------------------------------------------------- tracking ---
 def _sam_track(a, video_path: Path, t: np.ndarray, info: dict, out: Path,
                maps: np.ndarray | None = None) -> Track:
@@ -120,6 +148,23 @@ def _reference_frame(a, t: np.ndarray) -> int:
     return 0
 
 
+def _apply_look(a, video_path: Path, t: np.ndarray, out: Path) -> None:
+    """Let Muse Spark find the object and the release, and use that as the SAM prompt."""
+    from .assistant import annotate, look_cached
+
+    lk = look_cached(video_path, t, out, refresh=a.refresh)
+    a.point = f"{lk.point_px[0]},{lk.point_px[1]}"
+    a.prompt_frame = lk.frame_index
+    if a.t_start is None:
+        a.t_start = float(t[lk.frame_index])
+    annotate(vid.read_frame(video_path, lk.frame_index), lk, out / "look.png")
+    print(f"Muse Spark ({lk.model}): {lk.experiment}, tracking '{lk.object_name}' at "
+          f"{a.point} on frame {lk.frame_index} (t = {t[lk.frame_index]:.2f} s), "
+          f"confidence {lk.confidence}. {lk.summary}", file=sys.stderr)
+    for i in lk.issues:
+        print(f"  setup: {i['kind'].replace('_', ' ')}: {i['detail']}", file=sys.stderr)
+
+
 def _track_video(a) -> tuple[Track, Path, Path, dict]:
     """Video -> (stabilized) track of the moving object. Shared by `pendulum` and `bounce`."""
     out = Path(a.out or Path("runs") / Path(a.video).stem)
@@ -127,6 +172,8 @@ def _track_video(a) -> tuple[Track, Path, Path, dict]:
     print(f"video: {info['width']}x{info['height']}, {info['frames']} frames, "
           f"{info['fps_mean']:.2f} fps, frame-interval jitter {info['frame_interval_jitter_ms']:.2f} ms",
           file=sys.stderr)
+    if getattr(a, "auto", False) and not (a.point or a.box) and a.tracker == "sam":
+        _apply_look(a, video_path, t, out)
     maps = None
     if not a.no_stabilize:
         from .stabilize import load_or_estimate, motion_summary
@@ -371,10 +418,18 @@ def main(argv: list[str] | None = None) -> None:
         sp.add_argument("--height", type=float, default=0.0, help="altitude, m")
         sp.add_argument("--out")
 
+    lo = sub.add_parser("look", help="Muse Spark looks at the video and sets up the measurement")
+    lo.add_argument("video")
+    lo.add_argument("--out")
+    lo.add_argument("--refresh", action="store_true", help="ask again instead of using look.json")
+    lo.set_defaults(func=cmd_look)
+
     pe = sub.add_parser("pendulum", help="video -> track -> g")
     pe.add_argument("video")
     pe.add_argument("--tracker", choices=["sam", "opencv"], default="sam")
     pe.add_argument("--prompt", default="white earbud", help="noun phrase for SAM 3.1")
+    pe.add_argument("--auto", action="store_true",
+                    help="Muse Spark finds the object and the release frame (no --point needed)")
     pe.add_argument("--point", help="X,Y click on frame 0 (video px) instead of a phrase")
     pe.add_argument("--box", help="L,T,R,B box on frame 0 instead of a phrase")
     pe.add_argument("--prompt-frame", type=int, default=0,
@@ -391,6 +446,8 @@ def main(argv: list[str] | None = None) -> None:
     bo.add_argument("video", help="a video, or a track.csv from an earlier run")
     bo.add_argument("--tracker", choices=["sam", "opencv"], default="sam")
     bo.add_argument("--prompt", default="golf ball", help="noun phrase for SAM 3.1")
+    bo.add_argument("--auto", action="store_true",
+                    help="Muse Spark finds the object and the release frame (no --point needed)")
     bo.add_argument("--point", help="X,Y click on the ball (video px) on --prompt-frame")
     bo.add_argument("--box", help="L,T,R,B box on --prompt-frame instead of a phrase")
     bo.add_argument("--prompt-frame", type=int, default=0,
