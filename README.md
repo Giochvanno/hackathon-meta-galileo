@@ -22,8 +22,9 @@ tracked by SAM 3.1, analysed by the code in this repository, judged by the Muse 
 | **Blind prediction, bouncing ball** | **B1 failed** on 2 of 3 drops | the instrument found why: hand releases from 31–34 cm, not 30 |
 | Period precision from one 34 s video | ± 0.0002 s (0.02 %) | |
 | SAM 3.1 vs a model-free OpenCV tracker on the same video | periods agree to 0.05 % | |
-| Cost | ≈ $0.20 per video (SAM), ≈ $0.035 per agent run | |
-| Tests | 58, run in CI on every push | |
+| Fully automatic run (Muse Spark finds the ball, SAM 3.1 tracks it) | T0 = 1.3982 s, **identical to a human click** | |
+| Cost | ≈ $0.20 per video (SAM), ≈ $0.02 to look (Spark), ≈ $0.035–0.05 per agent run | |
+| Tests | 60, run in CI on every push | |
 
 ### The experiments
 
@@ -131,6 +132,30 @@ Muse Wonder is not available to this account (the API returns 404; the organizer
 it is outside the hackathon credits and not required), so the agent runs on `muse-spark-1.3`.
 Set `MODEL_AGENT=muse-wonder-1.0` in `.env` wherever it is available.
 
+## The lab assistant: no clicking (Muse Spark sees, SAM 3.1 tracks)
+
+`look` shows Muse Spark ten frames of the video (dense at the start, where the release is).
+It answers in structured JSON: what kind of experiment this is, which object to measure, the
+earliest frame where it is free of the hand, where it is (on Spark's 0–1000 grounding grid),
+where the pivot or the floor is, and what is wrong with the setup. The point is then snapped to
+the centre of the moving object next to it (the thickest region that differs from the
+video's median background) and handed to SAM 3.1 as the prompt. `--auto` does all of it:
+
+```bash
+python -m galileo.cli look     my_pendulum.mp4             # what Spark sees: look.png + notes
+python -m galileo.cli pendulum my_pendulum.mp4 --auto --length 0.489
+```
+
+On E4 (white ball in front of a white panel) Spark picked frame 30 (a person picked frame 28),
+noted the low contrast, the faint string and the hidden pivot, and the fully automatic run gave
+**T0 = 1.3982 ± 0.0003 s, the same as with a human click** (≈ $0.02 for Spark, $0.20 for SAM).
+
+The first automatic run failed, safely: Spark pointed 54 px above the ball, onto the shelf
+edge; SAM tracked the shelf, and the pipeline refused the motionless object instead of
+reporting a g. Snapping to the thickest moving region fixed it (thin strips such as an edge,
+the string or fingers lose), with a limit of two object radii so that a hand still holding the
+ball is not taken for it.
+
 ## Second system: a bouncing ball (coefficient of restitution)
 
 The same pipeline measures a different experiment. Drop a ball on a hard floor and film it:
@@ -217,6 +242,25 @@ What we checked, what went wrong on the way, and what we changed because of it.
 * Two independent period estimates on every run (model fit and zero-crossing regression):
   0.2–0.6 σ apart on all three real experiments.
 
+**Accuracy map: where the instrument works and where it breaks.** `scripts/accuracy_map.py`
+renders 81 synthetic pendulum videos with a known g (`galileo/synth.py`: exact nonlinear motion,
+per-row exposure for shutter blur and rolling shutter), changes one condition at a time, and runs
+the normal pipeline on each. With the model-free OpenCV tracker
+([full table](docs/accuracy_opencv.md)):
+
+* **Robust:** motion blur up to a full frame, 5–40 px bobs, 15–60 fps, 5–30 s recordings, rolling
+  shutter up to 33 ms, a phone rolled by 20°, camera shake up to 25 px: g within **0.03 %**.
+* **Degrades:** sensor noise σ = 25 grey levels (0.04 %); a 40° swing (0.15 %: keep it under 25°).
+* **Refuses rather than lies:** strong damping (amplitude gone in a few seconds) is flagged
+  UNRELIABLE 3/3 with a huge error bar; a low-contrast bob (40 or 15 grey levels above the
+  background) is lost by the model-free tracker, and the one track it produced was flagged.
+  This is where SAM 3.1 has to earn its place: the same map with SAM is the next run.
+* **Error bars are conservative:** the reported σ is about 5× the actual scatter in the easy
+  cases (the period error is the larger of two independent estimates), and grows when the
+  conditions get hard.
+
+![Accuracy map](docs/accuracy_map_opencv.png)
+
 **Things that went wrong, and the fix**
 * *SAM text prompt matched the wrong object.* "battery" segmented a soda can on the desk;
   the motionless can gave g = 0.30. → The pipeline now refuses objects that do not move,
@@ -281,7 +325,7 @@ verdict was computed or shown, so the length could not be chosen to fit the pred
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 cp .env.example .env                                    # put your MODEL_API_KEY in it
-pytest -q                                               # 58 tests, no network needed
+pytest -q                                               # 60 tests, no network needed
 ```
 
 ffmpeg comes with `imageio-ffmpeg`; no system install needed.
@@ -329,11 +373,14 @@ galileo/
   stabilize.py   camera-motion compensation
   lab.py         lab notebook: experiments, T0²-vs-L fit, frozen predictions, blind verification
   agent.py       Muse Spark tool loop, tools, run logs with token cost
+  assistant.py   Muse Spark looks at the video: object, release frame, pivot/floor, setup issues
+  synth.py       synthetic pendulum videos with known g and controlled degradations
   report.py      report.png, overlay.png, bounce_report.png
   render.py      overlay video: SAM mask, trail and live numbers on every frame
   cli.py         probe / pendulum / bounce / analyze / render / lab / agent
 scripts/make_synthetic_pendulum.py   video with known g for end-to-end tests
 scripts/make_synthetic_bounce.py     bouncing-ball video with known e
+scripts/accuracy_map.py              81 synthetic videos, one condition changed at a time
 scripts/check_models.py              which models this key can use, and whether they call tools
 tests/                               physics, SAM parsing, lab, agent loop and API client against fake servers
 ```
@@ -347,4 +394,4 @@ the first commit is dated Oct 30, 2026, and the commit history shows every step 
 |---|---|
 | Oct 30 | SAM 3.1 pipeline, physics fits, synthetic validation; first real run (battery, g = 9.92 ± 0.25) |
 | Oct 31 | Muse Spark agent with 7 tools and a lab notebook; golf-ball pendulum E2; **P1 confirmed blind**; overlay video; CI |
-| Nov 1 | E3 filmed; **the agent verified P2 blind by itself**; E4: P3 in tension (z = −2.2, traced to ±4–5 mm length errors); g from three lengths 9.782 ± 0.127; bouncing-ball module; first real drop e = 0.8638 ± 0.0004 with rolling-shutter correction; prediction B1 registered and **failed on 2 of 3 drops** (hand release 31–34 cm, measured from the video) |
+| Nov 1 | E3 filmed; **the agent verified P2 blind by itself**; Muse Spark lab assistant (fully automatic run = human click); E4: P3 in tension (z = −2.2, traced to ±4–5 mm length errors); g from three lengths 9.782 ± 0.127; bouncing-ball module; first real drop e = 0.8638 ± 0.0004 with rolling-shutter correction; prediction B1 registered and **failed on 2 of 3 drops** (hand release 31–34 cm, measured from the video) |

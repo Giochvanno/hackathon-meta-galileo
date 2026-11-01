@@ -135,10 +135,18 @@ def plot(rows: list[dict], out: Path) -> None:
         ax.set_facecolor("#fcfcfb")
         for i, level in enumerate(levels):
             sel = [r for r in rows if r["factor"] == factor and r["level"] == level and r["ok"]]
+            failed = [r for r in rows if r["factor"] == factor and r["level"] == level
+                      and not r["ok"]]
             for r in sel:
-                ax.plot(i, max(abs(r["error_pct"]), 1e-4), "o", ms=5,
-                        color="#2a78d6" if r["reliable"] else "#eb6834", alpha=0.8)
-                ax.plot(i, r["sigma_g"] / r["g"] * 100, "_", ms=12, color="#52514e")
+                e = abs(r["error_pct"])
+                off_scale = e > 20
+                ax.plot(i, min(max(e, 1e-4), 20), "^" if off_scale else "o", ms=6,
+                        color="#2a78d6" if r["reliable"] else "#eb6834", alpha=0.85)
+                ax.plot(i, min(r["sigma_g"] / r["g"] * 100, 20), "_", ms=12, color="#52514e")
+            if failed:
+                ax.plot(i, 20, "x", ms=8, color="#52514e")
+                ax.annotate(f"{len(failed)} no track", (i, 20), textcoords="offset points",
+                            xytext=(0, -14), ha="center", fontsize=7, color="#52514e")
         ax.set_yscale("log")
         ax.set_ylim(1e-4, 30)
         ax.set_xticks(range(len(levels)), [f"{v:g}" for v in levels])
@@ -150,7 +158,7 @@ def plot(rows: list[dict], out: Path) -> None:
         ax.axis("off")
     axes[0, 0].set_ylabel("|g error|, %   (dash: reported σ)")
     fig.suptitle("Accuracy map: synthetic videos with known g  ·  blue = reliable, orange = flagged "
-                 "unreliable", x=0.02, ha="left", fontsize=11)
+                 "unreliable, ▲ = off the scale, × = no track", x=0.02, ha="left", fontsize=11)
     fig.tight_layout()
     fig.savefig(out / "accuracy_map.png", dpi=130, facecolor="#fcfcfb")
 

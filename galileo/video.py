@@ -78,6 +78,28 @@ def video_size(path: str | Path) -> tuple[int, int]:
     return w, h
 
 
+def read_frames(path: str | Path, indices) -> dict[int, np.ndarray]:
+    """Several frames in one sequential pass (grab() skips decoding the frames in between)."""
+    import cv2
+
+    want = sorted({int(i) for i in indices})
+    out: dict[int, np.ndarray] = {}
+    cap = cv2.VideoCapture(str(path))
+    i = 0
+    for target in want:
+        while i < target:
+            if not cap.grab():
+                break
+            i += 1
+        ok, frame = cap.read()
+        if not ok:
+            break
+        out[target] = frame
+        i += 1
+    cap.release()
+    return out
+
+
 def read_frame(path: str | Path, index: int) -> np.ndarray:
     """One BGR frame by index (decoding sequentially, which is exact for any frame rate)."""
     import cv2

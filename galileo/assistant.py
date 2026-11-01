@@ -115,48 +115,55 @@ def sample_frames(n_frames: int, k: int = 10, end_fraction: float = 0.7) -> list
 
 
 def refine_point(video_path: str | Path, frame_index: int, point: tuple[int, int],
-                 search_px: int = 90, samples: int = 40) -> tuple[tuple[int, int], bool]:
+                 search_px: int = 100, samples: int = 40) -> tuple[tuple[int, int], bool]:
     """Snap the assistant's point to the centre of the moving object next to it.
 
-    Grounding on a 0-1000 grid is coarse: on a 1280-px frame one grid step is 1.3 px, but
-    the model often points at the edge of a ball rather than its centre, and a point just
-    outside the object would make SAM segment the wrong thing. The object moves and the
-    background does not, so the median over the video is the empty scene; the object is
-    what differs from it near the point. Returns (point, refined?).
+    Grounding on a 0-1000 grid is coarse, and the model often points at the edge of a ball
+    rather than its centre; a point just outside the object makes SAM segment the wrong
+    thing (a shelf edge, which then "does not move"). The object moves and the background
+    does not, so the median over the video is the empty scene; the object is the compact
+    blob that differs from it near the point. Thin strips (edges shifted by a slightly
+    moving camera) are ignored. Returns (point, refined?).
     """
     from . import video as vid
 
     cap = cv2.VideoCapture(str(video_path))
     n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
     cap.release()
-    frames = [vid.read_frame(video_path, int(i)) for i in np.linspace(0, n - 1, samples)]
-    bg = np.median(np.stack(frames), axis=0).astype(np.int16)
-    fr = vid.read_frame(video_path, frame_index).astype(np.int16)
+    idx = [int(i) for i in np.linspace(0, n - 1, samples)]
+    frames = vid.read_frames(video_path, idx + [frame_index])
+    if frame_index not in frames:
+        return point, False
+    bg = np.median(np.stack([frames[i] for i in idx if i in frames]), axis=0).astype(np.int16)
+    fr = frames[frame_index].astype(np.int16)
     h, w = fr.shape[:2]
     x, y = point
     x0, x1 = max(0, x - search_px), min(w, x + search_px + 1)
     y0, y1 = max(0, y - search_px), min(h, y + search_px + 1)
     diff = np.abs(fr[y0:y1, x0:x1] - bg[y0:y1, x0:x1]).max(axis=2).astype(np.uint8)
-    _, mask = cv2.threshold(diff, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     if diff.max() < 25:
         return point, False
+    _, mask = cv2.threshold(diff, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
-    k, labels, stats, cents = cv2.connectedComponentsWithStats(mask)
-    if k <= 1:
+    # The object is the *thickest* moving thing near the point: the centre of the largest
+    # circle that fits inside the moving region. Thin strips (an edge shifted by a slightly
+    # moving camera, a string, fingers) have small inscribed circles.
+    dt = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
+    yy, xx = np.mgrid[0:mask.shape[0], 0:mask.shape[1]]
+    score = dt - 0.15 * np.hypot(xx - (x - x0), yy - (y - y0))
+    j = np.unravel_index(int(np.argmax(score)), score.shape)
+    if dt[j] < 4:
         return point, False
-    px, py = x - x0, y - y0
-    best, best_d = None, np.inf
-    for j in range(1, k):
-        if stats[j, cv2.CC_STAT_AREA] < 30:
-            continue
-        inside = labels[min(py, labels.shape[0] - 1), min(px, labels.shape[1] - 1)] == j
-        d = 0.0 if inside else float(np.hypot(*(cents[j] - (px, py))))
-        if d < best_d:
-            best, best_d = j, d
-    if best is None or best_d > search_px * 0.6:
+    # Centre of that blob: centroid of the moving pixels within its inscribed radius * 1.5.
+    r = 1.5 * dt[j]
+    near = (mask > 0) & (np.hypot(xx - j[1], yy - j[0]) <= r)
+    cy, cx = np.argwhere(near).mean(axis=0)
+    new = (int(round(cx + x0)), int(round(cy + y0)))
+    # A snap is a small correction: at most two object radii (otherwise it found something
+    # else, e.g. the hand that is still releasing the ball; then keep the model's point).
+    if np.hypot(new[0] - x, new[1] - y) > max(2 * dt[j], 12):
         return point, False
-    cx, cy = cents[best]
-    return (int(round(cx + x0)), int(round(cy + y0))), True
+    return new, True
 
 
 def _jpeg_data_url(frame: np.ndarray, max_side: int = 960) -> str:
@@ -195,7 +202,8 @@ def look(video_path: str | Path, t: np.ndarray, frames_idx: list[int] | None = N
     model = model or os.environ.get("MODEL_LOOK") or os.environ.get("MODEL_AGENT", "muse-spark-1.3")
     effort = effort or os.environ.get("LOOK_REASONING", "medium")
     idx = frames_idx or sample_frames(len(t))
-    frames = [vid.read_frame(video_path, i) for i in idx]
+    got = vid.read_frames(video_path, idx)
+    frames = [got[i] for i in idx]
     h, w = frames[0].shape[:2]
 
     content: list[dict] = [{"type": "input_text",
@@ -282,6 +290,9 @@ def look_cached(video_path: Path, t: np.ndarray, out: Path, refresh: bool = Fals
         d["pivot_px"] = tuple(d["pivot_px"]) if d.get("pivot_px") else None
         if d.get("model_point_px"):
             d["model_point_px"] = tuple(d["model_point_px"])
+            # Snapping is free and may have improved since the answer was cached: redo it.
+            point, ok = refine_point(video_path, d["frame_index"], d["model_point_px"])
+            d["point_px"], d["point_refined"] = (point, ok) if ok else (d["model_point_px"], False)
         return Look(**d)
     lk = look(video_path, t)
     cache.write_text(json.dumps(lk.to_dict(), indent=2))
