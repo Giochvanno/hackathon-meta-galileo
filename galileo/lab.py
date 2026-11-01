@@ -242,7 +242,17 @@ class Lab:
         return out
 
     def request(self, length_m: float, instructions: str) -> dict:
-        req = {"length_m": length_m, "instructions": instructions, "created_at": _now()}
+        req = {"length_m": length_m, "instructions": instructions, "created_at": _now(),
+               "seq": self._next_seq()}
         self.state["requests"].append(req)
         self.save()
         return req
+
+    def request_done_by(self, req: dict) -> str | None:
+        """The experiment that answered a request: added later, length within the 20 % limit."""
+        for e in self.state["experiments"].values():
+            later = (e["seq"] > req["seq"]) if "seq" in req else e["added_at"] > req["created_at"]
+            close = abs(e["length_m"] - req["length_m"]) <= MAX_LENGTH_MISMATCH * req["length_m"]
+            if later and close:
+                return e["id"]
+        return None
