@@ -26,6 +26,9 @@ tracked by SAM 3.1, analysed by the code in this repository, judged by the Muse 
 | Cost | ≈ $0.20 per video (SAM), ≈ $0.02 to look (Spark), ≈ $0.035–0.05 per agent run | |
 | Tests | 60, run in CI on every push | |
 
+Every number below can be checked: the notebook, the agent logs, the tracks and the fits of
+each run are in [`docs/evidence`](docs/evidence/README.md).
+
 ### The experiments
 
 | ID | Setup | Length L (pivot → bob centre) | Small-angle period T0 | g from this run alone |
