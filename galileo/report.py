@@ -115,3 +115,62 @@ def overlay(frame_bgr: np.ndarray, track: Track, res: PendulumResult | None,
     path = Path(path)
     cv2.imwrite(str(path), img)
     return path
+
+
+def bounce_report(track: Track, res, path: str | Path) -> Path:
+    """Two panels: height with the fitted flights and impact marks; flight times with the e law."""
+    import matplotlib
+    import matplotlib.ticker
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    tr = track.finite()
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 7.5), facecolor=SURFACE,
+                                   gridspec_kw={"height_ratios": [3, 2]})
+    for ax in (ax1, ax2):
+        _style(ax)
+
+    label = "SAM 3.1 mask centroid" if "sam" in tr.source.lower() else "tracked centroid"
+    ax1.plot(tr.t, -tr.y, ".", color=DATA, ms=4, label=label)
+    for k, arc in enumerate(a for a in res.arcs if a):
+        tt = np.linspace(arc["t_first"], arc["t_last"], 80)
+        a, b, c = arc["coef"]
+        u = tt - arc["tc"]
+        ax1.plot(tt, -(a * u**2 + b * u + c), color=FIT, lw=1.6,
+                 label="free-flight parabola" if k == 0 else None)
+    for k, (ti, si) in enumerate(zip(res.impacts_s, res.sigma_impacts_s)):
+        ax1.axvline(ti, color=ACCENT, lw=0.9, alpha=0.8,
+                    label="impact (parabolas meet)" if k == 0 else None)
+    ax1.set_ylabel("height in image, px (up)")
+    ax1.set_xlabel("time, s")
+    ax1.legend(frameon=False, fontsize=9, loc="upper right")
+
+    n = np.arange(1, len(res.flights_s) + 1)
+    ax2.plot(n, res.flights_s, "o", color=INK, ms=6, label="measured flight time")
+    if res.models:
+        best = res.models[0]
+        T = [res.flights_s[0]]
+        for _ in range(len(n) - 1):
+            ref = best["e_is_at_flight_s"] or 0.0
+            T.append(T[-1] * (best["e"] + best["e_slope_per_s"] * (T[-1] - ref)))
+        ax2.plot(n, T, "-", color=FIT, lw=1.6, label=f"{best['name']} e model")
+    ax2.set_yscale("log")
+    ax2.yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter("%.2f"))
+    ax2.yaxis.set_minor_formatter(matplotlib.ticker.FormatStrFormatter("%.2f"))
+    ax2.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+    ax2.set_xlabel("flight number")
+    ax2.set_ylabel("flight time, s (log)")
+    ax2.legend(frameon=False, fontsize=9)
+
+    status = "" if res.reliable else "UNRELIABLE   "
+    slope = (f", de/dT = {res.e_slope_per_s:+.3f} ± {res.sigma_e_slope:.3f} /s"
+             if res.best_model == "speed-dependent" else "")
+    fig.suptitle(f"{status}coefficient of restitution e = {res.e:.4f} ± {res.sigma_e:.4f}{slope}   "
+                 f"({len(res.impacts_s)} impacts, best model: {res.best_model})",
+                 color=INK, fontsize=11.5, x=0.02, ha="left")
+    fig.tight_layout()
+    path = Path(path)
+    fig.savefig(path, dpi=130, facecolor=SURFACE)
+    plt.close(fig)
+    return path

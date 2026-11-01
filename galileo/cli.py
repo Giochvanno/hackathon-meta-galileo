@@ -9,6 +9,7 @@
     python -m galileo.cli lab add  runs/NAME/track.csv --length 0.39 --length-err 0.003 --t-start 5
     python -m galileo.cli lab show
     python -m galileo.cli render runs/NAME                           # overlay video of the SAM run
+    python -m galileo.cli bounce   VIDEO --point 610,240 --prompt-frame 20 --drop-height 0.50
     python -m galileo.cli agent --goal "Measure g and test it with a prediction"
 """
 
@@ -119,7 +120,8 @@ def _reference_frame(a, t: np.ndarray) -> int:
     return 0
 
 
-def cmd_pendulum(a) -> None:
+def _track_video(a) -> tuple[Track, Path, Path, dict]:
+    """Video -> (stabilized) track of the moving object. Shared by `pendulum` and `bounce`."""
     out = Path(a.out or Path("runs") / Path(a.video).stem)
     video_path, t, info = vid.prepare(a.video, out, refresh=a.refresh)
     print(f"video: {info['width']}x{info['height']}, {info['frames']} frames, "
@@ -149,7 +151,72 @@ def cmd_pendulum(a) -> None:
         track = _sam_track(a, video_path, t, info, out, maps)
     track.to_csv(out / "track.csv")
     print(f"tracked on {track.coverage():.0%} of frames -> {out / 'track.csv'}", file=sys.stderr)
+    return track, out, video_path, info
+
+
+def cmd_pendulum(a) -> None:
+    track, out, video_path, info = _track_video(a)
     _analyze_and_report(a, track, out, video_path, info)
+
+
+# ------------------------------------------------------------------ bounce ---
+def cmd_bounce(a) -> None:
+    """Bouncing ball: coefficient of restitution from impact times (VIDEO or a track.csv)."""
+    from .bounce import analyze_bounce, fit_restitution, predict_first_flight
+    from .report import bounce_report
+
+    if a.video.lower().endswith(".csv"):
+        track = Track.from_csv(a.video)
+        out = Path(a.out or Path(a.video).parent)
+        info: dict = {}
+    else:
+        track, out, _, info = _track_video(a)
+    g = local_g(a.lat, a.height)
+    # Motion blur makes the mask of a fast ball 2-3x larger near impacts: a loose area filter.
+    work = track.clean(area_tol=3.0).window(a.t_start, a.t_end)
+    res = analyze_bounce(work, a.drop_height, a.drop_height_err, g=g)
+    out.mkdir(parents=True, exist_ok=True)
+    preds = []
+    if res.models and a.predict_height:
+        fit = fit_restitution(res.impacts_s, res.sigma_impacts_s)[0]
+        for h in a.predict_height:
+            T, s = predict_first_flight(h, fit, a.drop_height_err, g)
+            preds.append({"drop_height_m": h, "first_flight_s": T, "sigma_s": s})
+    payload = {"system": "bouncing ball", "result": res.to_dict(), "predictions": preds,
+               "video": info, "tracker": track.source, "track_meta": track.meta, "g_used": g}
+    (out / "result_bounce.json").write_text(json.dumps(payload, indent=2, default=float))
+    bounce_report(work, res, out / "bounce_report.png")
+
+    print()
+    if not res.reliable:
+        print("  !!! UNRELIABLE MEASUREMENT: " + "; ".join(res.problems))
+        print("  !!! The numbers below are not a measurement. Fix the tracking first.\n")
+    print(f"  {len(res.impacts_s)} impacts timed, tracking noise {res.noise_px:.2f} px")
+    for i, (ti, si) in enumerate(zip(res.impacts_s, res.sigma_impacts_s), 1):
+        flight = f"   flight {res.flights_s[i - 1]:.4f} s" if i <= len(res.flights_s) else ""
+        print(f"    impact {i}: t = {ti:.4f} ± {si * 1e3:.2f} ms{flight}")
+    for i, (r, s) in enumerate(zip(res.ratios, res.sigma_ratios), 2):
+        print(f"    e at impact {i} (T{i}/T{i - 1}) = {r:.4f} ± {s:.4f}"
+              f"   impact speed {res.impact_speeds_m_s[i - 2]:.2f} m/s")
+    print(f"  coefficient of restitution e = {res.e:.4f} ± {res.sigma_e:.4f}  ({res.best_model})")
+    if res.best_model == "speed-dependent":
+        print(f"  e changes with the previous flight time: {res.e_slope_per_s:+.3f} ± "
+              f"{res.sigma_e_slope:.3f} per second")
+    print("  models by AIC: " + ", ".join(f"{m['name']} ΔAIC={m['delta_aic']:.1f}" for m in res.models))
+    if res.g_from_scale:
+        print(f"  cross-check from the drop height scale: g = {res.g_from_scale:.2f} ± "
+              f"{res.sigma_g_from_scale:.2f} m/s² (reference {g:.4f})")
+    if res.predicted_first_flight_s and res.first_impact_is_drop:
+        print(f"  first flight from e and the drop height: {res.predicted_first_flight_s:.4f} ± "
+              f"{res.sigma_predicted_first_flight_s:.4f} s (measured {res.flights_s[0]:.4f} s)")
+    if res.bounces_end_after_s:
+        print(f"  bouncing should stop {res.bounces_end_after_s:.2f} s after the first impact")
+    for p_ in preds:
+        print(f"  prediction: drop from {p_['drop_height_m'] * 100:.0f} cm -> first flight "
+              f"{p_['first_flight_s']:.4f} ± {p_['sigma_s']:.4f} s")
+    for w in res.warnings:
+        print("  ! " + w)
+    print(f"\n  {out / 'bounce_report.png'}\n  {out / 'result_bounce.json'}")
 
 
 def cmd_analyze(a) -> None:
@@ -249,7 +316,9 @@ def cmd_lab_show(a) -> None:
                 f"z = {v['z']:+.2f}, {'blind' if v['blind'] else 'NOT blind'})" if v else "-> pending")
         print(f"{p['id']}: L = {p['length_m']:.3f} m, T0 = {p['T0']:.4f} ± {p['sigma_T0']:.4f} s {tail}")
     for q in lab.state["requests"]:
-        print(f"request: L = {q['length_m']:.3f} m: {q['instructions']}")
+        done = lab.request_done_by(q)
+        status = f"done by {done}" if done else "OPEN"
+        print(f"request ({status}): L = {q['length_m']:.3f} m: {q['instructions']}")
 
 
 def cmd_agent(a) -> None:
@@ -301,6 +370,28 @@ def main(argv: list[str] | None = None) -> None:
                     help="skip camera-motion compensation (phone on a tripod)")
     fit_args(pe)
     pe.set_defaults(func=cmd_pendulum)
+
+    bo = sub.add_parser("bounce", help="bouncing ball -> coefficient of restitution")
+    bo.add_argument("video", help="a video, or a track.csv from an earlier run")
+    bo.add_argument("--tracker", choices=["sam", "opencv"], default="sam")
+    bo.add_argument("--prompt", default="golf ball", help="noun phrase for SAM 3.1")
+    bo.add_argument("--point", help="X,Y click on the ball (video px) on --prompt-frame")
+    bo.add_argument("--box", help="L,T,R,B box on --prompt-frame instead of a phrase")
+    bo.add_argument("--prompt-frame", type=int, default=0,
+                    help="frame for --point/--box: the ball held still just before the drop")
+    bo.add_argument("--refresh", action="store_true")
+    bo.add_argument("--no-stabilize", action="store_true")
+    bo.add_argument("--t-start", type=float)
+    bo.add_argument("--t-end", type=float)
+    bo.add_argument("--drop-height", type=float,
+                    help="floor to the bottom of the ball before release, m (optional)")
+    bo.add_argument("--drop-height-err", type=float, default=0.005)
+    bo.add_argument("--predict-height", type=float, nargs="*",
+                    help="drop heights (m) to predict the first flight time for")
+    bo.add_argument("--lat", type=float, default=35.23)
+    bo.add_argument("--height", type=float, default=0.0, help="altitude, m")
+    bo.add_argument("--out")
+    bo.set_defaults(func=cmd_bounce)
 
     an = sub.add_parser("analyze", help="re-fit an existing track.csv")
     an.add_argument("track_csv")
