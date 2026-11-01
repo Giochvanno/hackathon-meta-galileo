@@ -1,0 +1,310 @@
+{
+  "experiments": {
+    "E1": {
+      "id": "E1",
+      "track_csv": "runs\\VID_20261030_180115\\track.csv",
+      "length_m": 0.39,
+      "length_err_m": 0.01,
+      "t_start": 5.0,
+      "t_end": null,
+      "note": "battery on USB cable, length by eye",
+      "added_at": "2026-10-31T05:29:41+00:00",
+      "seq": 1
+    },
+    "E2": {
+      "id": "E2",
+      "track_csv": "runs\\experiment01\\track.csv",
+      "length_m": 0.619,
+      "length_err_m": 0.003,
+      "t_start": 5.5,
+      "t_end": null,
+      "note": "golf ball on sewing thread, tape-measured",
+      "added_at": "2026-10-31T10:33:03+00:00",
+      "seq": 3
+    },
+    "E3": {
+      "id": "E3",
+      "track_csv": "runs\\VID_20261101_141249\\track.csv",
+      "length_m": 0.2887,
+      "length_err_m": 0.003,
+      "t_start": null,
+      "t_end": null,
+      "amplitude_deg": null,
+      "note": "golf ball on thread, 31.0 cm to bottom, ~20 deg release (blind test of P2)",
+      "added_at": "2026-11-01T05:29:00+00:00",
+      "seq": 5
+    },
+    "E4": {
+      "id": "E4",
+      "track_csv": "runs\\VID_20261101_161000\\track.csv",
+      "length_m": 0.489,
+      "length_err_m": 0.003,
+      "t_start": 0.97,
+      "t_end": null,
+      "amplitude_deg": null,
+      "note": "golf ball on thread, 51.0 cm to bottom, blind test of P3",
+      "added_at": "2026-11-01T07:18:31+00:00",
+      "seq": 7
+    }
+  },
+  "model": {
+    "a": 4.019689178459765,
+    "b": 0.010587557489955107,
+    "cov": [
+      [
+        0.0026482683236434316,
+        -0.0012221418188172832
+      ],
+      [
+        -0.0012221418188172832,
+        0.0006117206556749532
+      ]
+    ],
+    "g": 9.82126125967891,
+    "sigma_g": 0.12573488367619762,
+    "offset_m": 0.002633924420497599,
+    "sigma_offset_m": 0.00618534572284023,
+    "chi2": 5.532542941273914,
+    "dof": 2,
+    "fit_offset": true,
+    "basis": [
+      "E1",
+      "E2",
+      "E3",
+      "E4"
+    ],
+    "created_at": "2026-11-01T07:19:16+00:00"
+  },
+  "predictions": {
+    "P1": {
+      "id": "P1",
+      "length_m": 0.6,
+      "length_err_m": 0.003,
+      "amplitude_deg": 10.0,
+      "T0": 1.545445040707296,
+      "sigma_T0": 0.02019642079400869,
+      "T_at_amplitude": 1.5483924848915955,
+      "sigma_T_at_amplitude": 0.020234939034026934,
+      "model": {
+        "a": 3.9806672897446265,
+        "b": 0.0,
+        "cov": [
+          [
+            0.010428496716360886,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ],
+        "g": 9.917537621409728,
+        "sigma_g": 0.25442444209944676,
+        "offset_m": 0.0,
+        "sigma_offset_m": 0.0,
+        "chi2": 0.0,
+        "dof": 0,
+        "fit_offset": false,
+        "basis": [
+          "E1"
+        ],
+        "created_at": "2026-10-31T05:29:56+00:00"
+      },
+      "created_at": "2026-10-31T05:29:58+00:00",
+      "seq": 2,
+      "verified_by": {
+        "prediction": "P1",
+        "experiment": "E2",
+        "blind": true,
+        "length_predicted_for_m": 0.6,
+        "length_used_m": 0.619,
+        "length_mismatch_pct": 3.1666666666666696,
+        "note": "the frozen model is re-evaluated at the length actually used",
+        "T0_predicted": 1.5697238777415357,
+        "sigma_T0_predicted": 0.02049100295208307,
+        "T0_measured": 1.5852134875521244,
+        "sigma_T0_measured": 0.000751458374949591,
+        "difference_pct": 0.9867728987390249,
+        "z": 0.7554146817725776,
+        "verdict": "confirmed",
+        "verified_at": "2026-10-31T10:53:13+00:00"
+      }
+    },
+    "P2": {
+      "id": "P2",
+      "length_m": 0.3,
+      "length_err_m": 0.003,
+      "amplitude_deg": 11.0,
+      "T0": 1.1031945394523304,
+      "sigma_T0": 0.006130362664430791,
+      "T_at_amplitude": 1.1057413014318174,
+      "sigma_T_at_amplitude": 0.006144514814387942,
+      "model": {
+        "a": 4.0567939729247975,
+        "b": 0.0,
+        "cov": [
+          [
+            0.0003870393269182636,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ],
+        "g": 9.731432719491782,
+        "sigma_g": 0.04719232564350812,
+        "offset_m": 0.0,
+        "sigma_offset_m": 0.0,
+        "chi2": 0.5549041142232185,
+        "dof": 1,
+        "fit_offset": false,
+        "basis": [
+          "E1",
+          "E2"
+        ],
+        "created_at": "2026-10-31T10:33:31+00:00"
+      },
+      "created_at": "2026-10-31T10:33:36+00:00",
+      "seq": 4,
+      "verified_by": {
+        "prediction": "P2",
+        "experiment": "E3",
+        "blind": true,
+        "length_predicted_for_m": 0.3,
+        "length_used_m": 0.2887,
+        "length_mismatch_pct": 3.766666666666659,
+        "note": "the frozen model is re-evaluated at the length actually used",
+        "T0_predicted": 1.0822182866609624,
+        "sigma_T0_predicted": 0.006205056666764466,
+        "T0_measured": 1.0867633924466578,
+        "sigma_T0_measured": 0.00019169563882290817,
+        "difference_pct": 0.4199805013199918,
+        "z": 0.7321348770608509,
+        "verdict": "confirmed",
+        "verified_at": "2026-11-01T05:31:18+00:00"
+      }
+    },
+    "P3": {
+      "id": "P3",
+      "length_m": 0.5,
+      "length_err_m": 0.003,
+      "amplitude_deg": 12.0,
+      "T0": 1.425352007029418,
+      "sigma_T0": 0.005266250273213146,
+      "T_at_amplitude": 1.4292695108601667,
+      "sigma_T_at_amplitude": 0.005280724280698489,
+      "model": {
+        "a": 4.035835998039935,
+        "b": 0.013710344922823015,
+        "cov": [
+          [
+            0.002724759572459312,
+            -0.0012210897520962228
+          ],
+          [
+            -0.0012210897520962228,
+            0.0006186838897105891
+          ]
+        ],
+        "g": 9.781967756749959,
+        "sigma_g": 0.12651930883086146,
+        "offset_m": 0.003397151155171234,
+        "sigma_offset_m": 0.0062044650594551215,
+        "chi2": 0.800707594722845,
+        "dof": 1,
+        "fit_offset": true,
+        "basis": [
+          "E1",
+          "E2",
+          "E3"
+        ],
+        "created_at": "2026-11-01T05:31:21+00:00"
+      },
+      "created_at": "2026-11-01T05:31:23+00:00",
+      "seq": 6,
+      "verified_by": {
+        "prediction": "P3",
+        "experiment": "E4",
+        "blind": true,
+        "length_predicted_for_m": 0.5,
+        "length_used_m": 0.489,
+        "length_mismatch_pct": 2.200000000000002,
+        "note": "the frozen model is re-evaluated at the length actually used",
+        "T0_predicted": 1.4096929268334828,
+        "sigma_T0_predicted": 0.005291822036885271,
+        "T0_measured": 1.398174295944666,
+        "sigma_T0_measured": 0.0002605155447749176,
+        "difference_pct": -0.8171021269639597,
+        "z": -2.1740523366953335,
+        "verdict": "tension",
+        "verified_at": "2026-11-01T07:19:14+00:00"
+      }
+    },
+    "P4": {
+      "id": "P4",
+      "length_m": 0.7,
+      "length_err_m": 0.003,
+      "amplitude_deg": 10.0,
+      "T0": 1.680586202017555,
+      "sigma_T0": 0.00551643871783359,
+      "T_at_amplitude": 1.6837913849240167,
+      "sigma_T_at_amplitude": 0.005526959567678552,
+      "model": {
+        "a": 4.019689178459765,
+        "b": 0.010587557489955107,
+        "cov": [
+          [
+            0.0026482683236434316,
+            -0.0012221418188172832
+          ],
+          [
+            -0.0012221418188172832,
+            0.0006117206556749532
+          ]
+        ],
+        "g": 9.82126125967891,
+        "sigma_g": 0.12573488367619762,
+        "offset_m": 0.002633924420497599,
+        "sigma_offset_m": 0.00618534572284023,
+        "chi2": 5.532542941273914,
+        "dof": 2,
+        "fit_offset": true,
+        "basis": [
+          "E1",
+          "E2",
+          "E3",
+          "E4"
+        ],
+        "created_at": "2026-11-01T07:19:16+00:00"
+      },
+      "created_at": "2026-11-01T07:19:21+00:00",
+      "seq": 8,
+      "verified_by": null
+    }
+  },
+  "requests": [
+    {
+      "length_m": 0.6,
+      "instructions": "Please record a pendulum at ~0.60 m pivot to bob centre, small swing ~10 deg, steady phone, several swings. Needed to test prediction P1.",
+      "created_at": "2026-10-31T05:29:59+00:00"
+    },
+    {
+      "length_m": 0.3,
+      "instructions": "Please record a pendulum at ~0.30 m (tape-measured, small dense bob, release ~11 deg, film ~15 swings steady). This tests P2 prediction before seeing data.",
+      "created_at": "2026-10-31T10:33:40+00:00"
+    },
+    {
+      "length_m": 0.5,
+      "instructions": "Golf ball on thread, tape-measured to pivot, ~12 deg release, film 30 s steady, no pushes. Target ~0.50 m (practical desk length, distinct from 0.29/0.39/0.62 m).",
+      "created_at": "2026-11-01T05:31:25+00:00"
+    },
+    {
+      "length_m": 0.7,
+      "instructions": "Golf ball on thread as in E2-E4. Tape-measure length to bob centre ~0.70 m. Release ~10 deg, film ~40 s steady, no nudges. Report length actually used.",
+      "created_at": "2026-11-01T07:19:22+00:00",
+      "seq": 9
+    }
+  ],
+  "seq": 9
+}

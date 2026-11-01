@@ -1,0 +1,50 @@
+{
+  "experiment": "pendulum",
+  "object_name": "white ping-pong ball bob",
+  "frame_index": 30,
+  "point_px": [
+    302,
+    885
+  ],
+  "release_index": 30,
+  "t_release": 1.039106,
+  "pivot_px": [
+    360,
+    115
+  ],
+  "floor_y_px": null,
+  "issues": [
+    {
+      "detail": "white ball overlaps white rear panel giving low contrast in central swing",
+      "kind": "low_contrast"
+    },
+    {
+      "detail": "string attachment at top edge of desk is hidden and string is very faint",
+      "kind": "pivot_not_visible"
+    }
+  ],
+  "confidence": "high",
+  "summary": "White ball on a string released under a desk swings side-to-side as a pendulum; usable for period tracking but pivot/string are faint and contrast is low against white background.",
+  "model": "muse-spark-1.3",
+  "usage": {
+    "input_tokens": 6934,
+    "output_tokens": 2207
+  },
+  "sampled_frames": [
+    0,
+    30,
+    60,
+    89,
+    119,
+    149,
+    285,
+    422,
+    558,
+    694
+  ],
+  "model_point_px": [
+    301,
+    854
+  ],
+  "point_refined": true
+}

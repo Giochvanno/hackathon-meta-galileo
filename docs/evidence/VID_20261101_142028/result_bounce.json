@@ -1,0 +1,214 @@
+{
+  "system": "bouncing ball",
+  "result": {
+    "n_points": 140,
+    "noise_px": 1.5955925034017338,
+    "impacts_s": [
+      4.896117514671331,
+      5.254877882630399,
+      5.566855935365136,
+      5.833693850396686,
+      6.065929506874983
+    ],
+    "sigma_impacts_s": [
+      0.0006176583357992029,
+      0.0008738992636343591,
+      0.0011607368143253726,
+      0.0016170276952726342,
+      0.0023491217869751305
+    ],
+    "flights_s": [
+      0.35876036795906785,
+      0.31197805273473733,
+      0.26683791503154985,
+      0.2322356564782968
+    ],
+    "ratios": [
+      0.8696001024570583,
+      0.8553098934123794,
+      0.8703248054191931
+    ],
+    "sigma_ratios": [
+      0.005783548704929979,
+      0.008958458033015081,
+      0.014842414122903057
+    ],
+    "impact_speeds_m_s": [
+      1.7574833943547552,
+      1.5283077397974736,
+      1.3071767300274917,
+      1.1376683332096738
+    ],
+    "best_model": "constant",
+    "models": [
+      {
+        "name": "constant",
+        "description": "e is the same at every impact",
+        "e": 0.8640953389624114,
+        "sigma_e": 0.0020120036058384133,
+        "e_slope_per_s": 0.0,
+        "sigma_e_slope": 0.0,
+        "e_is_at_flight_s": null,
+        "chi2": 1.14,
+        "dof": 2,
+        "aic": 7.14,
+        "delta_aic": 0.0
+      },
+      {
+        "name": "speed-dependent",
+        "description": "e changes linearly with the impact speed",
+        "e": 0.8611073880969062,
+        "sigma_e": 0.005445154620188595,
+        "e_slope_per_s": 0.079213451154395,
+        "sigma_e_slope": 0.13436376564885502,
+        "e_is_at_flight_s": 0.2894079838831436,
+        "chi2": 0.78,
+        "dof": 1,
+        "aic": 8.78,
+        "delta_aic": 1.64
+      }
+    ],
+    "e": 0.8640953389624114,
+    "sigma_e": 0.0020120036058384133,
+    "e_slope_per_s": 0.0,
+    "sigma_e_slope": 0.0,
+    "curvature_px_s2": 5308.78339548696,
+    "curvature_spread_pct": 11.838818641038124,
+    "drop_height_m": 0.479,
+    "px_per_m": null,
+    "g_from_scale": null,
+    "sigma_g_from_scale": null,
+    "predicted_first_flight_s": 0.5404008583042589,
+    "sigma_predicted_first_flight_s": 0.011352646357195422,
+    "bounces_end_after_s": 2.6397944354523775,
+    "first_impact_is_drop": false,
+    "first_flight_s": null,
+    "sigma_first_flight_s": null,
+    "first_flight_method": "none",
+    "reliable": false,
+    "problems": [
+      "2 flight(s) before or inside the timed bounces do not look like free fall (wrong curvature or not a parabola): the tracker may have followed something else"
+    ],
+    "warnings": [],
+    "arcs": [
+      {
+        "t_first": 3.251397,
+        "t_last": 3.385475,
+        "n": 5,
+        "curvature_px_s2": 6294.868751717549,
+        "rms_px": 0.5009797845541539,
+        "tc": 3.3184358000000005,
+        "coef": [
+          6294.868751717549,
+          2524.932343664451,
+          283.41157880976834
+        ]
+      },
+      null,
+      null,
+      {
+        "t_first": 4.52514,
+        "t_last": 4.860335,
+        "n": 11,
+        "curvature_px_s2": 5510.870850430819,
+        "rms_px": 2.0703663322171306,
+        "tc": 4.692737454545455,
+        "coef": [
+          5510.870850430819,
+          23.70202744953815,
+          411.3630957040568
+        ]
+      },
+      {
+        "t_first": 4.927374,
+        "t_last": 5.22905,
+        "n": 10,
+        "curvature_px_s2": 5196.922574800515,
+        "rms_px": 1.312734371284804,
+        "tc": 5.0782123,
+        "coef": [
+          5196.922574800515,
+          10.576504431914486,
+          473.73595280275674
+        ]
+      },
+      {
+        "t_first": 5.296089,
+        "t_last": 5.530726,
+        "n": 8,
+        "curvature_px_s2": 5076.359055364767,
+        "rms_px": 0.63954037196095,
+        "tc": 5.413407749999999,
+        "coef": [
+          5076.359055364767,
+          10.997989131208783,
+          511.9700756934717
+        ]
+      },
+      {
+        "t_first": 5.597765,
+        "t_last": 5.798883,
+        "n": 7,
+        "curvature_px_s2": 4764.108414232877,
+        "rms_px": 0.9158970031477998,
+        "tc": 5.6983239999999995,
+        "coef": [
+          4764.108414232877,
+          -37.95968327283492,
+          545.8547709069467
+        ]
+      },
+      {
+        "t_first": 5.865922,
+        "t_last": 6.03352,
+        "n": 6,
+        "curvature_px_s2": 4549.790253854085,
+        "rms_px": 0.7857258153221709,
+        "tc": 5.949720666666667,
+        "coef": [
+          4549.790253854085,
+          -23.581597836638707,
+          564.0320591872766
+        ]
+      },
+      {
+        "t_first": 6.100559,
+        "t_last": 6.234637,
+        "n": 5,
+        "curvature_px_s2": 4237.609185990282,
+        "rms_px": 0.29557354346067033,
+        "tc": 6.167597799999999,
+        "coef": [
+          4237.609185990282,
+          -13.029066291295294,
+          577.6078429381917
+        ]
+      },
+      null,
+      null,
+      null
+    ]
+  },
+  "predictions": [
+    {
+      "drop_height_m": 0.3,
+      "first_flight_s": 0.42767011240616143,
+      "sigma_s": 0.0142908251320628
+    }
+  ],
+  "video": {
+    "width": 1280,
+    "height": 720,
+    "frames": 314,
+    "duration_s": 10.692737,
+    "fps_mean": 29.272205984305053,
+    "frame_interval_jitter_ms": 4.5961830128178915
+  },
+  "tracker": "sam-3.1",
+  "track_meta": {
+    "object_id": "1",
+    "prompt": "<93f>1<|point;x=668;y=110;w=1280;h=720|>",
+    "raw_output": "runs\\VID_20261101_142028\\sam_point-668-110-f93.txt"
+  },
+  "g_used": 9.797533681620441
+}

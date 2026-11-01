@@ -1,0 +1,54 @@
+{
+  "experiment": "pendulum",
+  "object_name": "white ping-pong ball bob",
+  "frame_index": 30,
+  "point_px": [
+    303,
+    831
+  ],
+  "release_index": 30,
+  "t_release": 1.039106,
+  "pivot_px": [
+    349,
+    115
+  ],
+  "floor_y_px": null,
+  "issues": [
+    {
+      "detail": "string attachment under desk top edge is hidden, exact pivot not visible",
+      "kind": "pivot_not_visible"
+    },
+    {
+      "detail": "white ball against white background and thin dark string against wood are faint",
+      "kind": "low_contrast"
+    },
+    {
+      "detail": "ball shows blur in mid-swing frames e.g. F3",
+      "kind": "strong_motion_blur"
+    }
+  ],
+  "confidence": "high",
+  "summary": "White ball on a string released from the side swings as a pendulum under a desk. Track from F1 onward; pivot is occluded behind the desk edge.",
+  "model": "muse-spark-1.3",
+  "usage": {
+    "input_tokens": 6934,
+    "output_tokens": 2080
+  },
+  "sampled_frames": [
+    0,
+    30,
+    60,
+    89,
+    119,
+    149,
+    285,
+    422,
+    558,
+    694
+  ],
+  "model_point_px": [
+    303,
+    831
+  ],
+  "point_refined": false
+}
