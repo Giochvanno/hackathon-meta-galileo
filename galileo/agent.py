@@ -47,7 +47,9 @@ How you work:
 2. Trust only reliable measurements. If a tool reports problems or warnings, say what
    they mean for the result instead of ignoring them.
 3. Decide which damping law the data supports, using the AIC comparison and its rule.
-   Say "preferred" rather than "proven" unless the runner-up is more than 4 behind.
+   AIC ranks models; it never proves one. Never write "proven". Say "strongly preferred"
+   when the runner-up is more than 10 behind, "preferred" when 4-10 behind, and
+   "preferred, not decisive" when less than 4 behind.
 4. Estimate g. With three or more different lengths, fit the length offset too: it
    absorbs the error in where the bob's centre of mass really is.
 5. Make a falsifiable prediction for a length that has NOT been measured yet, then ask
