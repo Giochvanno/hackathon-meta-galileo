@@ -132,7 +132,8 @@ def bounce_report(track: Track, res, path: str | Path) -> Path:
         _style(ax)
 
     label = "SAM 3.1 mask centroid" if "sam" in tr.source.lower() else "tracked centroid"
-    ax1.plot(tr.t, -tr.y, ".", color=DATA, ms=4, label=label)
+    tt_data = tr.t + res.rolling_shutter_s_per_px * tr.y  # same clock as the fitted flights
+    ax1.plot(tt_data, -tr.y, ".", color=DATA, ms=4, label=label)
     for k, arc in enumerate(a for a in res.arcs if a):
         tt = np.linspace(arc["t_first"], arc["t_last"], 80)
         a, b, c = arc["coef"]
@@ -143,7 +144,8 @@ def bounce_report(track: Track, res, path: str | Path) -> Path:
         ax1.axvline(ti, color=ACCENT, lw=0.9, alpha=0.8,
                     label="impact (parabolas meet)" if k == 0 else None)
     ax1.set_ylabel("height in image, px (up)")
-    ax1.set_xlabel("time, s")
+    ax1.set_xlabel("time, s" + (" (each row at its own read-out time)"
+                                if res.rolling_shutter_s_per_px else ""))
     ax1.legend(frameon=False, fontsize=9, loc="upper right")
 
     n = np.arange(1, len(res.flights_s) + 1)

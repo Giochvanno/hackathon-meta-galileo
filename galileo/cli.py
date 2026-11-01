@@ -146,7 +146,8 @@ def _track_video(a) -> tuple[Track, Path, Path, dict]:
     if a.tracker == "opencv":
         from .cv_track import track_moving_blob
 
-        track = track_moving_blob(str(video_path), t, maps=maps)
+        roi = tuple(int(v) for v in a.roi.split(",")) if getattr(a, "roi", None) else None
+        track = track_moving_blob(str(video_path), t, maps=maps, roi=roi)
     else:
         track = _sam_track(a, video_path, t, info, out, maps)
     track.to_csv(out / "track.csv")
@@ -174,13 +175,15 @@ def cmd_bounce(a) -> None:
     g = local_g(a.lat, a.height)
     # Motion blur makes the mask of a fast ball 2-3x larger near impacts: a loose area filter.
     work = track.clean(area_tol=3.0).window(a.t_start, a.t_end)
-    res = analyze_bounce(work, a.drop_height, a.drop_height_err, g=g)
+    height = info.get("height") or a.frame_height
+    res = analyze_bounce(work, a.drop_height, a.drop_height_err, g=g, frame_height_px=height,
+                         rolling_shutter=not a.no_rolling_shutter)
     out.mkdir(parents=True, exist_ok=True)
     preds = []
     if res.models and a.predict_height:
         fit = fit_restitution(res.impacts_s, res.sigma_impacts_s)[0]
         for h in a.predict_height:
-            T, s = predict_first_flight(h, fit, a.drop_height_err, g)
+            T, s = predict_first_flight(h, fit, a.predict_height_err, g)
             preds.append({"drop_height_m": h, "first_flight_s": T, "sigma_s": s})
     payload = {"system": "bouncing ball", "result": res.to_dict(), "predictions": preds,
                "video": info, "tracker": track.source, "track_meta": track.meta, "g_used": g}
@@ -192,6 +195,10 @@ def cmd_bounce(a) -> None:
         print("  !!! UNRELIABLE MEASUREMENT: " + "; ".join(res.problems))
         print("  !!! The numbers below are not a measurement. Fix the tracking first.\n")
     print(f"  {len(res.impacts_s)} impacts timed, tracking noise {res.noise_px:.2f} px")
+    if res.rolling_shutter_s_per_px:
+        ro = (f" (sensor readout ≈ {res.rolling_shutter_readout_ms:.0f} ms per frame)"
+              if res.rolling_shutter_readout_ms else "")
+        print(f"  rolling shutter corrected: {res.rolling_shutter_s_per_px * 1e6:.1f} µs per row{ro}")
     for i, (ti, si) in enumerate(zip(res.impacts_s, res.sigma_impacts_s), 1):
         flight = f"   flight {res.flights_s[i - 1]:.4f} s" if i <= len(res.flights_s) else ""
         print(f"    impact {i}: t = {ti:.4f} ± {si * 1e3:.2f} ms{flight}")
@@ -206,9 +213,12 @@ def cmd_bounce(a) -> None:
     if res.g_from_scale:
         print(f"  cross-check from the drop height scale: g = {res.g_from_scale:.2f} ± "
               f"{res.sigma_g_from_scale:.2f} m/s² (reference {g:.4f})")
-    if res.predicted_first_flight_s and res.first_impact_is_drop:
-        print(f"  first flight from e and the drop height: {res.predicted_first_flight_s:.4f} ± "
-              f"{res.sigma_predicted_first_flight_s:.4f} s (measured {res.flights_s[0]:.4f} s)")
+    if res.first_flight_s:
+        print(f"  first flight after the drop: {res.first_flight_s:.4f} ± "
+              f"{res.sigma_first_flight_s:.4f} s (from {res.first_flight_method})")
+    if res.predicted_first_flight_s and res.first_flight_s:
+        print(f"  first flight expected from e and the drop height: "
+              f"{res.predicted_first_flight_s:.4f} ± {res.sigma_predicted_first_flight_s:.4f} s")
     if res.bounces_end_after_s:
         print(f"  bouncing should stop {res.bounces_end_after_s:.2f} s after the first impact")
     for p_ in preds:
@@ -366,6 +376,7 @@ def main(argv: list[str] | None = None) -> None:
                     help="frame the --point/--box refers to (pick one after the hand has left; "
                          "SAM tracks forward from it and bills only those frames)")
     pe.add_argument("--refresh", action="store_true", help="redo preprocessing and the SAM call")
+    pe.add_argument("--roi", help="L,T,R,B: opencv tracker ignores motion outside this box")
     pe.add_argument("--no-stabilize", action="store_true",
                     help="skip camera-motion compensation (phone on a tripod)")
     fit_args(pe)
@@ -380,14 +391,20 @@ def main(argv: list[str] | None = None) -> None:
     bo.add_argument("--prompt-frame", type=int, default=0,
                     help="frame for --point/--box: the ball held still just before the drop")
     bo.add_argument("--refresh", action="store_true")
+    bo.add_argument("--roi", help="L,T,R,B: opencv tracker ignores motion outside this box")
     bo.add_argument("--no-stabilize", action="store_true")
     bo.add_argument("--t-start", type=float)
     bo.add_argument("--t-end", type=float)
+    bo.add_argument("--no-rolling-shutter", action="store_true",
+                    help="do not estimate the row-by-row exposure delay of the phone sensor")
+    bo.add_argument("--frame-height", type=int, help="video height in px, for a bare track.csv")
     bo.add_argument("--drop-height", type=float,
                     help="floor to the bottom of the ball before release, m (optional)")
     bo.add_argument("--drop-height-err", type=float, default=0.005)
     bo.add_argument("--predict-height", type=float, nargs="*",
                     help="drop heights (m) to predict the first flight time for")
+    bo.add_argument("--predict-height-err", type=float, default=0.005,
+                    help="1σ of the drop height you will use for the predicted drop, m")
     bo.add_argument("--lat", type=float, default=35.23)
     bo.add_argument("--height", type=float, default=0.0, help="altitude, m")
     bo.add_argument("--out")

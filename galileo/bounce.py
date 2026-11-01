@@ -51,6 +51,48 @@ def find_impacts(y: np.ndarray, noise: float, min_prominence_px: float = 3.0) ->
     return peaks
 
 
+def rolling_shutter_skew(t: np.ndarray, y: np.ndarray, peaks: np.ndarray,
+                         max_skew_s_per_px: float) -> tuple[float, float, float]:
+    """Time skew between image rows, estimated from the flights themselves.
+
+    Phone cameras read the sensor row by row (rolling shutter): a row lower in the
+    image is exposed a little later, up to a whole frame interval at the bottom. A
+    falling ball is fast and crosses many rows, so its parabola looks bent unless each
+    point gets its own time, t + k * y. We pick k that makes all flights the best
+    parabolas. Impacts all happen on the floor row, so this shifts every impact by the
+    same amount and leaves flight times (and e) unchanged; it fixes the shape of the
+    flights, and with it the impact estimates and the error bars.
+
+    Returns (k in s/px, residual sum of squares at k = 0, at the best k).
+    """
+    segs = [np.arange(peaks[i] + 1, peaks[i + 1]) for i in range(len(peaks) - 1)]
+    segs = [s for s in segs if len(s) >= MIN_ARC_POINTS + 1]
+    if not segs:
+        return 0.0, float("nan"), float("nan")
+
+    def rss(k):
+        total = 0.0
+        tt = t + k * y
+        for s in segs:
+            u = tt[s] - tt[s].mean()
+            A = np.column_stack([u**2, u, np.ones_like(u)])
+            coef, *_ = np.linalg.lstsq(A, y[s], rcond=None)
+            r = y[s] - A @ coef
+            total += float(r @ r)
+        return total
+
+    grid = np.linspace(-max_skew_s_per_px, max_skew_s_per_px, 81)
+    vals = np.array([rss(k) for k in grid])
+    i = int(np.argmin(vals))
+    k = float(grid[i])
+    if 0 < i < len(grid) - 1:  # parabolic refinement between grid points
+        a, b, c = vals[i - 1], vals[i], vals[i + 1]
+        den = a - 2 * b + c
+        if den > 0:
+            k = float(grid[i] + 0.5 * (a - c) / den * (grid[1] - grid[0]))
+    return k, rss(0.0), rss(k)
+
+
 @dataclass
 class Arc:
     """y = a (t - tc)^2 + b (t - tc) + c for one flight, with the covariance of (a, b, c)."""
@@ -73,6 +115,23 @@ class Arc:
         d = t_ref - self.tc
         m = np.array([[1, 0, 0], [2 * d, 1, 0], [d * d, d, 1]], float)
         return m @ self.coef, m @ self.cov @ m.T
+
+
+def _drop_seen(t, y, first_peak: int) -> bool:
+    """Is the motion before the first impact a drop from rest (not a bounce already under way)?
+
+    A drop starts from a ball held still at the top, or at the very first frame. A bounce in
+    progress rises first: its highest point is in the middle of the segment, passed quickly.
+    """
+    seg = np.arange(0, first_peak)
+    if len(seg) < 2:
+        return False
+    i_top = int(np.argmin(y[seg]))
+    if i_top <= 1:
+        return True
+    drop = float(y[first_peak] - y[seg][i_top])
+    still = seg[np.abs(y[seg] - y[seg][i_top]) <= 0.01 * drop + 1.0]
+    return bool(t[still[-1]] - t[still[0]] >= 0.15)
 
 
 def _release_segment(t, y, first_peak: int) -> np.ndarray:
@@ -139,7 +198,7 @@ def fit_arcs(t: np.ndarray, y: np.ndarray,
         if item is None:
             continue
         r_rms = np.sqrt(np.mean(item[4] ** 2))
-        if r_rms > 3 * ref_rms or abs(item[3][0] - ref_curv) > 0.3 * abs(ref_curv):
+        if r_rms > max(5 * ref_rms, 1.0) or abs(item[3][0] - ref_curv) > 0.3 * abs(ref_curv):
             raw[i] = None
             rejected.append(i)
 
@@ -397,6 +456,11 @@ class BounceResult:
     sigma_predicted_first_flight_s: float | None
     bounces_end_after_s: float | None  # constant model: T1 / (1 - e) after the first impact
     first_impact_is_drop: bool = False  # impact 1 is the one right after the release
+    first_flight_s: float | None = None  # flight right after the drop impact, if seen
+    sigma_first_flight_s: float | None = None
+    first_flight_method: str = "none"    # "impacts" or "floor level" (drop impact not timed)
+    rolling_shutter_s_per_px: float = 0.0  # time skew between rows, applied to the timestamps
+    rolling_shutter_readout_ms: float | None = None  # the same over the whole frame height
     reliable: bool = True
     problems: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -407,7 +471,8 @@ class BounceResult:
 
 
 def analyze_bounce(track: Track, drop_height_m: float | None = None, sigma_drop_m: float = 0.005,
-                   g: float = G_BUSAN) -> BounceResult:
+                   g: float = G_BUSAN, frame_height_px: int | None = None,
+                   rolling_shutter: bool = True) -> BounceResult:
     tr = track.finite()
     if len(tr.t) < 20:
         raise ValueError(f"only {len(tr.t)} tracked frames; need at least 20")
@@ -421,6 +486,21 @@ def analyze_bounce(track: Track, drop_height_m: float | None = None, sigma_drop_
     if len(peaks) < 2:
         raise ValueError(f"found {len(peaks)} impact(s); need at least 2 bounces in the window "
                          "(is the ball moving? is the floor in frame?)")
+
+    # Rolling shutter: allow up to one frame interval of skew over the frame height.
+    skew = 0.0
+    readout_ms = None
+    if rolling_shutter:
+        dt = float(np.median(np.diff(t)))
+        height = frame_height_px or 1.5 * float(np.ptp(y))
+        k, rss0, rss1 = rolling_shutter_skew(t, y, peaks, dt / height)
+        n_pts = sum(max(0, b - a - 1) for a, b in zip(peaks[:-1], peaks[1:]))
+        # Keep it only when the flights become clearly better parabolas (an AIC gain > 10).
+        if np.isfinite(rss1) and rss1 > 0 and n_pts * np.log(rss0 / rss1) > 10:
+            skew = k
+            t = t + skew * y
+            if frame_height_px:
+                readout_ms = 1e3 * skew * frame_height_px
     arcs, sigma, rejected = fit_arcs(t, y, peaks)
 
     # Impact i sits between arc i and arc i+1. Use the longest run of usable neighbours.
@@ -502,7 +582,8 @@ def analyze_bounce(track: Track, drop_height_m: float | None = None, sigma_drop_
 
     px_per_m = g_scale = s_g_scale = None
     seg0 = _release_segment(t, y, peaks[0])
-    if drop_height_m and arcs[0] is not None and used and used[0] == 0 and len(seg0) and seg0[0] > 2:
+    if (drop_height_m and arcs[0] is not None and used and used[0] == 0 and len(seg0)
+            and seg0[0] > 2 and _drop_seen(t, y, peaks[0])):
         y_release = float(np.median(y[: seg0[0]]))
         y_impact = float(arcs[0](imp_t[0]))
         px_per_m = (y_impact - y_release) / drop_height_m
@@ -515,6 +596,35 @@ def analyze_bounce(track: Track, drop_height_m: float | None = None, sigma_drop_
     pred = s_pred = None
     if best is not None and drop_height_m:
         pred, s_pred = predict_first_flight(drop_height_m, best, sigma_drop_m, g)
+    # The first flight after the drop is what a drop-height prediction is about. When the drop
+    # itself is not usable (release out of frame, hand, blur), its start is where the flight's
+    # parabola leaves the floor level, measured at the impacts we did time.
+    ff = s_ff = None
+    ff_method = "none"
+    dropped = _drop_seen(t, y, peaks[0])
+    if not dropped:
+        warnings.append("the recording starts after the drop: the first timed flight is not the "
+                        "first flight after the release")
+    if not dropped:
+        pass
+    elif used and used[0] == 0 and len(flights):
+        ff, s_ff, ff_method = float(flights[0]), float(np.hypot(imp_s[0], imp_s[1])), "impacts"
+    elif used and used[0] == 1 and arcs[1] is not None:
+        floor = np.array([arcs[i + 1](ti) for i, ti in zip(used, imp_t)])
+        y_floor = float(np.mean(floor))
+        s_floor = float(np.std(floor, ddof=1) / np.sqrt(len(floor))) if len(floor) > 1 else sigma
+        arc = arcs[1]
+        a_, b_, c_ = arc.shifted(arc.t_first)[0]
+        roots = np.roots([a_, b_, c_ - y_floor])
+        roots = roots[np.isreal(roots)].real
+        if len(roots):
+            u = float(roots[np.argmin(np.abs(roots))])
+            slope = 2 * a_ * u + b_
+            t_start = arc.t_first + u
+            ff = float(imp_t[0] - t_start)
+            s_start = float(np.hypot(s_floor, sigma) / abs(slope))
+            s_ff, ff_method = float(np.hypot(s_start, imp_s[0])), "floor level"
+
     end_after = None
     if best is not None and best.name == "constant" and len(flights):
         end_after = float(flights[0] / (1 - best.e))
@@ -537,5 +647,7 @@ def analyze_bounce(track: Track, drop_height_m: float | None = None, sigma_drop_
         curvature_spread_pct=spread, drop_height_m=drop_height_m, px_per_m=px_per_m,
         g_from_scale=g_scale, sigma_g_from_scale=s_g_scale, predicted_first_flight_s=pred,
         sigma_predicted_first_flight_s=s_pred, bounces_end_after_s=end_after,
-        first_impact_is_drop=bool(used and used[0] == 0),
+        first_impact_is_drop=bool(dropped and used and used[0] == 0),
+        first_flight_s=ff, sigma_first_flight_s=s_ff, first_flight_method=ff_method,
+        rolling_shutter_s_per_px=float(skew), rolling_shutter_readout_ms=readout_ms,
         reliable=not problems, problems=problems, warnings=warnings, arcs=arc_info)

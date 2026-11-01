@@ -105,3 +105,44 @@ def test_cli_on_a_track_csv(tmp_path, capsys):
     e = float(out.split("coefficient of restitution e = ")[1].split()[0])
     assert abs(e - 0.8) < 0.003 and "drop from 30 cm" in out
     assert (tmp_path / "bounce_report.png").exists() and (tmp_path / "result_bounce.json").exists()
+
+
+def test_first_flight_when_the_drop_is_not_seen():
+    """Release out of frame: the first flight starts where its parabola leaves the floor level."""
+    tr, truth = drop_track(seed=7)
+    y = tr.y.copy()
+    y[tr.t < truth[0] - 0.08] = np.nan  # only the last 2-3 frames of the fall are visible
+    r = analyze_bounce(Track(tr.t, tr.x, y, tr.area, tr.conf, "sim"), drop_height_m=0.5)
+    assert r.first_flight_method == "floor level"
+    assert abs(r.first_flight_s - (truth[1] - truth[0])) < max(3 * r.sigma_first_flight_s, 0.004)
+    assert abs(r.first_flight_s - r.predicted_first_flight_s) < 0.01
+
+
+def test_recording_that_starts_mid_bounce_is_not_taken_for_the_drop():
+    tr, truth = drop_track(seed=8)
+    y = tr.y.copy()
+    y[tr.t < truth[0] + 0.03] = np.nan  # starts just after the first impact
+    r = analyze_bounce(Track(tr.t, tr.x, y, tr.area, tr.conf, "sim"), drop_height_m=0.5)
+    assert r.first_flight_s is None and not r.first_impact_is_drop and r.g_from_scale is None
+    assert abs(r.e - 0.8) < 3 * r.sigma_e
+
+
+def test_rolling_shutter_is_measured_and_corrected():
+    """Rows lower in the image are read later (25 ms over 720 rows, like a phone sensor)."""
+    rng = np.random.default_rng(9)
+    fps, k, ppm = 30.0, 0.025 / 720, 600.0
+    n = int(4 * fps)
+    t = np.arange(n) / fps + 0.013
+    y = np.full(n, 300.0)
+    for _ in range(30):  # the row a point lands on depends on when it is read: iterate
+        h, truth = simulate_drop(t + k * y, 0.5, 0.8, t_release=0.7)
+        y = 650 - ppm * h
+    y = y + rng.normal(0, 0.4, n)
+    nan = np.full(n, np.nan)
+    tr = Track(t, 400 + rng.normal(0, 0.4, n), y, nan, nan, "sim")
+    r = analyze_bounce(tr, frame_height_px=720)
+    assert r.reliable
+    assert r.rolling_shutter_readout_ms == pytest.approx(25, abs=4)
+    assert abs(r.e - 0.8) < 3 * r.sigma_e
+    off = np.array(r.flights_s) - np.diff(truth)[: len(r.flights_s)]
+    assert np.max(np.abs(off)) < 0.002

@@ -22,7 +22,7 @@ tracked by SAM 3.1, analysed by the code in this repository, judged by the Muse 
 | Period precision from one 34 s video | ± 0.0002 s (0.02 %) | |
 | SAM 3.1 vs a model-free OpenCV tracker on the same video | periods agree to 0.05 % | |
 | Cost | ≈ $0.20 per video (SAM), ≈ $0.035 per agent run | |
-| Tests | 46, run in CI on every push | |
+| Tests | 49, run in CI on every push | |
 
 ### The experiments
 
@@ -138,6 +138,25 @@ The same pipeline measures a different experiment. Drop a ball on a hard floor a
   from a new height (to be tested on a new recording).
 * With `--drop-height`, the pixel scale gives an independent rough g as a cross-check.
 
+* **Rolling shutter is measured and removed.** A phone sensor reads rows one after another,
+  so a fast ball lower in the image is seen later. The delay per row is fitted from the
+  flights themselves (the value that makes them the best parabolas).
+
+**First real drop** (golf ball on a laminate floor, phone on the floor, 30 fps, SAM 3.1 point
+prompt one frame after the release):
+
+| | Value |
+|---|---|
+| impacts timed | 8 (errors 0.4–2.6 ms; frames are 34 ms apart) |
+| **coefficient of restitution** | **e = 0.8638 ± 0.0004**, the same at every impact within errors (constant-e model preferred, ΔAIC 0.7: not decisive) |
+| e at single impacts, 2.7 → 1.3 m/s | 0.866, 0.864, 0.861, 0.869, 0.855, 0.870 |
+| rolling shutter found in the data | 33 µs per row = 24 ms per frame, typical for phone sensors; tracking residuals 5× smaller after the correction |
+| cross-check: OpenCV tracker on the same video | e = 0.863 ± 0.003 |
+
+**Pre-registered prediction B1** (made from this drop, before the next one was analysed):
+a drop from **30 cm** (floor to the bottom of the ball) gives a first flight of
+**0.4275 ± 0.0036 s**.
+
 ```bash
 python -m galileo.cli bounce my_drop.mp4 --point 610,240 --prompt-frame 20 \
     --drop-height 0.50 --predict-height 0.30
@@ -178,6 +197,18 @@ What we checked, what went wrong on the way, and what we changed because of it.
   before the model reached the tool call. → 16 000.
 * *Overclaiming.* The agent once wrote that a damping law was "proven". → AIC only ranks
   models; the prompt now asks for "strongly preferred / preferred / not decisive".
+* *The first real ball drop was flagged UNRELIABLE.* The two biggest flights were not clean
+  parabolas: residuals of 5–6 px in a W pattern. The cause was the phone's rolling shutter
+  (the ball crosses 400 rows in a flight, and lower rows are read up to 24 ms later). → Each
+  point now gets the time of its own row; the delay is fitted from the data, and the
+  correction is applied only when it clearly improves the fit (never on synthetic data
+  without the effect). Flight times did not change, because all impacts happen on the same
+  row; the impact estimates and error bars did.
+* *A hand at the edge of the frame* was the biggest moving object for the model-free
+  tracker. → `--roi` limits where it looks (SAM follows the clicked object anyway).
+* *The release was at the top edge of the frame and blurred.* → The first flight can also be
+  timed from where its parabola leaves the floor level, and a recording that starts in the
+  middle of the bounces is never mistaken for the drop.
 
 **Blinding the length.** For E3 the measured length was first reported as "31 cm". Whether
 that meant the bottom or the centre of the ball decides the verdict: the two readings differ
@@ -196,8 +227,10 @@ verdict was computed or shown, so the length could not be chosen to fit the pred
   agreed on E3, but a clean release is better.
 * E1 (battery on a stiff cable, length by eye) is not an ideal pendulum; it is kept because
   the fit weighs it accordingly (its error bar is 2.5–5 times larger than the others).
-* The bouncing-ball module is validated on synthetic drops; real drops are being recorded.
-  Air drag on the ball is not modelled (≈0.4 % of gravity for a golf ball at 3 m/s).
+* Bouncing ball: air drag is not modelled (≈0.4 % of gravity for a golf ball at 3 m/s). The
+  ball drifts sideways and in depth after a few bounces, so the flights' curvature in pixels
+  changes; e uses only times and is not affected, but the pixel scale (and the rough g from
+  `--drop-height`) is. The first drop height was set by eye (±2 cm).
 * The agent cannot see the video; it only sees tool results.
 
 ## Setup
@@ -206,7 +239,7 @@ verdict was computed or shown, so the length could not be chosen to fit the pred
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 cp .env.example .env                                    # put your MODEL_API_KEY in it
-pytest -q                                               # 45 tests, no network needed
+pytest -q                                               # 49 tests, no network needed
 ```
 
 ffmpeg comes with `imageio-ffmpeg`; no system install needed.
@@ -272,4 +305,4 @@ the first commit is dated Oct 30, 2026, and the commit history shows every step 
 |---|---|
 | Oct 30 | SAM 3.1 pipeline, physics fits, synthetic validation; first real run (battery, g = 9.92 ± 0.25) |
 | Oct 31 | Muse Spark agent with 7 tools and a lab notebook; golf-ball pendulum E2; **P1 confirmed blind**; overlay video; CI |
-| Nov 1 | E3 filmed; **the agent verified P2 blind by itself**; g from three lengths 9.782 ± 0.127; bouncing-ball module |
+| Nov 1 | E3 filmed; **the agent verified P2 blind by itself**; g from three lengths 9.782 ± 0.127; bouncing-ball module; first real drop e = 0.8638 ± 0.0004 with rolling-shutter correction; prediction B1 registered |
