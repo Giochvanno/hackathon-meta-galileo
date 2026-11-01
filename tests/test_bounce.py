@@ -146,3 +146,20 @@ def test_rolling_shutter_is_measured_and_corrected():
     assert abs(r.e - 0.8) < 3 * r.sigma_e
     off = np.array(r.flights_s) - np.diff(truth)[: len(r.flights_s)]
     assert np.max(np.abs(off)) < 0.002
+
+
+def test_drop_height_is_measured_from_the_video_two_ways():
+    tr, _ = drop_track(h0=0.34, seed=10, px_per_m=900.0)
+    r = analyze_bounce(tr)
+    assert r.drop_height_from_timing_m == pytest.approx(0.34, abs=3 * r.sigma_drop_height_from_timing_m)
+    assert r.drop_height_from_pixels_m == pytest.approx(0.34, rel=0.03)
+
+
+def test_slope_survives_the_floor_level_branch():
+    """Regression: a local variable once overwrote the e-vs-speed slope with a pixel velocity."""
+    tr, truth = drop_track(fps=60, slope=-0.3, seed=11)
+    y = tr.y.copy()
+    y[tr.t < truth[0] - 0.05] = np.nan  # forces the floor-level branch
+    r = analyze_bounce(Track(tr.t, tr.x, y, tr.area, tr.conf, "sim"))
+    assert r.first_flight_method == "floor level"
+    assert abs(r.e_slope_per_s) < 2

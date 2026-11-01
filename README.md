@@ -18,11 +18,12 @@ tracked by SAM 3.1, analysed by the code in this repository, judged by the Muse 
 | | Value | Reference |
 |---|---|---|
 | **g from three lengths** (T0² vs L, with a length-offset term) | **9.782 ± 0.127 m/s²** | 9.7975 m/s² for Busan (−0.16 %, 0.1 σ) |
-| **Blind predictions confirmed** | **2 of 2** (z = 0.76 and 0.73) | a third (P3) is registered and waiting |
+| **Blind predictions, pendulum** | **2 of 2 confirmed** (z = 0.76 and 0.73) | a third (P3) is registered and waiting |
+| **Blind prediction, bouncing ball** | **B1 failed** on 2 of 3 drops | the instrument found why: hand releases from 31–34 cm, not 30 |
 | Period precision from one 34 s video | ± 0.0002 s (0.02 %) | |
 | SAM 3.1 vs a model-free OpenCV tracker on the same video | periods agree to 0.05 % | |
 | Cost | ≈ $0.20 per video (SAM), ≈ $0.035 per agent run | |
-| Tests | 49, run in CI on every push | |
+| Tests | 51, run in CI on every push | |
 
 ### The experiments
 
@@ -153,9 +154,32 @@ prompt one frame after the release):
 | rolling shutter found in the data | 33 µs per row = 24 ms per frame, typical for phone sensors; tracking residuals 5× smaller after the correction |
 | cross-check: OpenCV tracker on the same video | e = 0.863 ± 0.003 |
 
-**Pre-registered prediction B1** (made from this drop, before the next one was analysed):
-a drop from **30 cm** (floor to the bottom of the ball) gives a first flight of
-**0.4275 ± 0.0036 s**.
+**Pre-registered prediction B1** (made from this drop and committed at 15:17 KST, before the
+next video was filmed): a drop from **30 cm** (floor to the bottom of the ball) gives a first
+flight of **0.4275 ± 0.0036 s**.
+
+**The test: three drops "from 30 cm", released by hand** (one video, SAM 3.1, analysed blind
+against B1):
+
+| Drop | First flight measured | vs B1 | Verdict | How far the ball really fell, from timing / from pixels | e of this drop |
+|---|---|---|---|---|---|
+| 1 | 0.4241 ± 0.0025 s | z = −0.8 | confirmed | 31.2 ± 0.4 cm / release not in the track | 0.841 ± 0.002 |
+| 2 | 0.4386 ± 0.0011 s | z = +2.9 | tension | 31.2 ± 0.2 cm / 31.3 cm | 0.869 ± 0.002 |
+| 3 | 0.4558 ± 0.0009 s | z = +7.6 | **refuted** | 34.1 ± 0.3 cm / 33.6 cm | 0.864 ± 0.003 |
+
+**B1 failed as registered: one drop of three agrees.** The instrument shows why, and in two
+independent ways. It measures how far the ball fell from the flight time (g T² / 8e²) and from
+the pixels (release-to-impact distance, with the pixel scale taken from the curvature of the
+flight); the two agree within 0.5 cm, and both say the hand released the ball from 31–34 cm,
+not 30. The coefficient of restitution itself also differs from drop to drop (0.841–0.869,
+probably where and with what spin the ball hits the laminate). Drop 1 "agreed" partly by
+luck: it fell 31 cm but bounced lower.
+
+The physics held; the prediction's error bar did not. It counted ±5 mm of drop height and the
+fit error of e, while a hand release varies by centimetres and e varies by ±1.5 % between
+drops. The honest error bar for "drop it from 30 cm by hand" is about ±0.016 s (±2 cm of height
+and ±1.5 % in e), not ±0.004 s.
+Next test: a fixed release point and several drops, so the spread is measured, not assumed.
 
 ```bash
 python -m galileo.cli bounce my_drop.mp4 --point 610,240 --prompt-frame 20 \
@@ -206,6 +230,9 @@ What we checked, what went wrong on the way, and what we changed because of it.
   row; the impact estimates and error bars did.
 * *A hand at the edge of the frame* was the biggest moving object for the model-free
   tracker. → `--roi` limits where it looks (SAM follows the clicked object anyway).
+* *A nonsense number: "e changes by −2403 per second".* A local variable for the pixel
+  velocity overwrote the restitution slope in one code path. → Renamed, regression test added;
+  the speed-dependent model now needs 6 impacts (it had 1 degree of freedom with 5).
 * *The release was at the top edge of the frame and blurred.* → The first flight can also be
   timed from where its parabola leaves the floor level, and a recording that starts in the
   middle of the bounces is never mistaken for the drop.
@@ -239,7 +266,7 @@ verdict was computed or shown, so the length could not be chosen to fit the pred
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 cp .env.example .env                                    # put your MODEL_API_KEY in it
-pytest -q                                               # 49 tests, no network needed
+pytest -q                                               # 51 tests, no network needed
 ```
 
 ffmpeg comes with `imageio-ffmpeg`; no system install needed.
@@ -305,4 +332,4 @@ the first commit is dated Oct 30, 2026, and the commit history shows every step 
 |---|---|
 | Oct 30 | SAM 3.1 pipeline, physics fits, synthetic validation; first real run (battery, g = 9.92 ± 0.25) |
 | Oct 31 | Muse Spark agent with 7 tools and a lab notebook; golf-ball pendulum E2; **P1 confirmed blind**; overlay video; CI |
-| Nov 1 | E3 filmed; **the agent verified P2 blind by itself**; g from three lengths 9.782 ± 0.127; bouncing-ball module; first real drop e = 0.8638 ± 0.0004 with rolling-shutter correction; prediction B1 registered |
+| Nov 1 | E3 filmed; **the agent verified P2 blind by itself**; g from three lengths 9.782 ± 0.127; bouncing-ball module; first real drop e = 0.8638 ± 0.0004 with rolling-shutter correction; prediction B1 registered and **failed on 2 of 3 drops** (hand release 31–34 cm, measured from the video) |

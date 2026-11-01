@@ -216,6 +216,11 @@ def cmd_bounce(a) -> None:
     if res.first_flight_s:
         print(f"  first flight after the drop: {res.first_flight_s:.4f} ± "
               f"{res.sigma_first_flight_s:.4f} s (from {res.first_flight_method})")
+    if res.drop_height_from_timing_m:
+        px = (f", from pixels {res.drop_height_from_pixels_m * 100:.1f} cm"
+              if res.drop_height_from_pixels_m else "")
+        print(f"  how far the ball fell: from timing {res.drop_height_from_timing_m * 100:.1f} ± "
+              f"{res.sigma_drop_height_from_timing_m * 100:.1f} cm{px}")
     if res.predicted_first_flight_s and res.first_flight_s:
         print(f"  first flight expected from e and the drop height: "
               f"{res.predicted_first_flight_s:.4f} ± {res.sigma_predicted_first_flight_s:.4f} s")

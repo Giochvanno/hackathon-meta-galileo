@@ -134,6 +134,19 @@ def _drop_seen(t, y, first_peak: int) -> bool:
     return bool(t[still[-1]] - t[still[0]] >= 0.15)
 
 
+def _release_y(t, y, first_peak: int) -> float | None:
+    """Image height of the ball while it is held still before the drop (None if not seen)."""
+    seg = np.arange(0, first_peak)
+    if len(seg) < 3:
+        return None
+    i_top = int(np.argmin(y[seg]))
+    drop = float(y[first_peak] - y[seg][i_top])
+    still = seg[np.abs(y[seg] - y[seg][i_top]) <= 0.01 * drop + 1.0]
+    if t[still[-1]] - t[still[0]] < 0.15:
+        return None
+    return float(np.median(y[still]))
+
+
 def _release_segment(t, y, first_peak: int) -> np.ndarray:
     """Indices of the free fall before the first impact (drops frames still in the hand)."""
     seg = np.arange(0, first_peak)
@@ -340,7 +353,7 @@ def fit_restitution(t_imp: np.ndarray, s_imp: np.ndarray) -> list[RestitutionFit
         except (RuntimeError, ValueError):
             pass
 
-    if n >= 5:
+    if n >= 6:  # 4 parameters: keep at least 2 degrees of freedom
         t_ref = float(np.median(flights))
 
         def fs(_, t1, T1, e, k):
@@ -459,6 +472,10 @@ class BounceResult:
     first_flight_s: float | None = None  # flight right after the drop impact, if seen
     sigma_first_flight_s: float | None = None
     first_flight_method: str = "none"    # "impacts" or "floor level" (drop impact not timed)
+    # How far the ball fell, measured from the video itself in two independent ways:
+    drop_height_from_timing_m: float | None = None   # g T1^2 / (8 e^2): first flight and e
+    sigma_drop_height_from_timing_m: float | None = None
+    drop_height_from_pixels_m: float | None = None   # pixel drop / scale from the flight's curvature
     rolling_shutter_s_per_px: float = 0.0  # time skew between rows, applied to the timestamps
     rolling_shutter_readout_ms: float | None = None  # the same over the whole frame height
     reliable: bool = True
@@ -619,11 +636,25 @@ def analyze_bounce(track: Track, drop_height_m: float | None = None, sigma_drop_
         roots = roots[np.isreal(roots)].real
         if len(roots):
             u = float(roots[np.argmin(np.abs(roots))])
-            slope = 2 * a_ * u + b_
+            v_px = 2 * a_ * u + b_  # image velocity where the flight leaves the floor level
             t_start = arc.t_first + u
             ff = float(imp_t[0] - t_start)
-            s_start = float(np.hypot(s_floor, sigma) / abs(slope))
+            s_start = float(np.hypot(s_floor, sigma) / abs(v_px))
             s_ff, ff_method = float(np.hypot(s_start, imp_s[0])), "floor level"
+
+    # How far did the ball really fall? (Hands are not precise: this tests the drop itself.)
+    h_time = s_h_time = h_px = None
+    if ff is not None and best is not None and 0 < e < 1:
+        e1 = e
+        h_time = g * ff**2 / (8 * e1**2)
+        s_h_time = h_time * float(np.hypot(2 * s_ff / ff, 2 * se / e1))
+        y_rel = _release_y(t, y, peaks[0])
+        first_arc = arcs[1] if len(arcs) > 1 else None
+        if y_rel is not None and first_arc is not None and first_arc.coef[0] > 0:
+            t_contact = imp_t[0] if ff_method == "impacts" else imp_t[0] - ff  # the drop impact
+            y_contact = float(first_arc(t_contact))
+            px_per_m_here = 2 * first_arc.coef[0] / g
+            h_px = (y_contact - y_rel) / px_per_m_here
 
     end_after = None
     if best is not None and best.name == "constant" and len(flights):
@@ -649,5 +680,7 @@ def analyze_bounce(track: Track, drop_height_m: float | None = None, sigma_drop_
         sigma_predicted_first_flight_s=s_pred, bounces_end_after_s=end_after,
         first_impact_is_drop=bool(dropped and used and used[0] == 0),
         first_flight_s=ff, sigma_first_flight_s=s_ff, first_flight_method=ff_method,
+        drop_height_from_timing_m=h_time, sigma_drop_height_from_timing_m=s_h_time,
+        drop_height_from_pixels_m=h_px,
         rolling_shutter_s_per_px=float(skew), rolling_shutter_readout_ms=readout_ms,
         reliable=not problems, problems=problems, warnings=warnings, arcs=arc_info)
