@@ -37,7 +37,8 @@ SCHEMA = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
-        "experiment": {"type": "string", "enum": ["pendulum", "bouncing ball", "other"]},
+        "experiment": {"type": "string",
+                       "enum": ["pendulum", "bouncing ball", "oscillator", "other"]},
         "object_name": {"type": "string"},
         "object_frame": {"type": "integer"},
         "object_point": POINT,
@@ -63,8 +64,10 @@ Coordinates: each frame on a 0-1000 grid, (0,0) top-left, x to the right, y down
 
 Answer as JSON:
 - experiment: "pendulum" (a bob on a string swinging), "bouncing ball" (a ball dropped on
-  a floor), or "other".
-- object_name: the moving object to measure (the bob or the ball), in a few words.
+  a floor), "oscillator" (anything else that moves back and forth: a mass on a spring, a
+  ruler clamped to a table, a swing, a branch, a metronome), or "other".
+- object_name: the moving object to measure (the bob, the ball, the end of the ruler...),
+  in a few words.
 - object_frame: the index of the EARLIEST frame where that object is clearly visible and
   already free of the hand (released and moving, or about to move freely).
 - object_point: the centre of the object in that frame.

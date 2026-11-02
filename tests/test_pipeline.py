@@ -40,12 +40,25 @@ def test_pendulum_measurement_without_clicks(tmp_path, monkeypatch):
     assert json.loads((tmp_path / "out" / "summary.json").read_text())["experiment"] == "pendulum"
 
 
-def test_pendulum_needs_a_length(tmp_path, monkeypatch):
+def test_a_pendulum_without_a_length_still_gives_period_and_damping(tmp_path, monkeypatch):
     import galileo.assistant as assistant
+    import galileo.cli as cli
     from galileo import pipeline
 
-    render(Scene(width=320, height=240, px_per_m=300, seconds=3.0), tmp_path / "v.mp4")
+    s = Scene(width=640, height=360, px_per_m=500, length_m=0.40, bob_radius_px=10,
+              seconds=12.0, seed=3)
+    truth = render(s, tmp_path / "v.mp4")
+    x, y = (int(v) for v in truth["bob_xy"][0])
     monkeypatch.setattr(assistant, "look_cached", lambda *a, **k: Look(
-        "pendulum", "bob", 0, (160, 200), 0, 0.0, None, None, [], "high", ""))
-    with pytest.raises(ValueError, match="length"):
-        pipeline.measure(tmp_path / "v.mp4", tmp_path / "out")
+        "pendulum", "bob", 0, (x, y), 0, 0.0, None, None, [], "high", ""))
+    real_track = cli._track_video
+
+    def offline_track(a):
+        a.tracker = "opencv"
+        return real_track(a)
+
+    monkeypatch.setattr(cli, "_track_video", offline_track)
+    summary = pipeline.measure(tmp_path / "v.mp4", tmp_path / "out")
+    assert summary["experiment"] == "oscillator" and summary["notes"]
+    assert summary["result"]["period_s"] == pytest.approx(truth["T0_small_angle"], rel=0.01)
+    assert "oscillation_report.png" in summary["files"]

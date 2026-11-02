@@ -31,12 +31,13 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).resolve().parent.parent
 STATIC = Path(__file__).resolve().parent / "static"
 EVIDENCE = ROOT / "docs" / "evidence"
 SERVED = {"look.png", "report.png", "overlay.png", "overlay.mp4", "bounce_report.png",
-          "summary.json"}
+          "oscillation_report.png", "summary.json"}
 
 
 def _env_float(name: str, default: float) -> float:
@@ -115,7 +116,12 @@ def create_app() -> FastAPI:
             return False, "no Meta Model API key is configured here, so only the examples run"
         return True, ""
 
-    app = FastAPI(title="Galileo", docs_url=None, redoc_url=None)
+    app = FastAPI(title="Isochron AI", docs_url=None, redoc_url=None)
+    app.mount("/static", StaticFiles(directory=STATIC), name="static")
+
+    @app.get("/favicon.ico")
+    def favicon():
+        return FileResponse(STATIC / "logo.svg", media_type="image/svg+xml")
 
     @app.get("/", response_class=HTMLResponse)
     def index():
@@ -135,6 +141,18 @@ def create_app() -> FastAPI:
     @app.get("/api/examples")
     def examples():
         return {"examples": _examples()}
+
+    @app.get("/api/hero")
+    def hero():
+        return _hero_trace()
+
+    @app.get("/api/replay")
+    def replay():
+        return _replay()
+
+    @app.get("/api/scorecard")
+    def scorecard():
+        return {"predictions": _scorecard()}
 
     @app.get("/evidence/{path:path}")
     def evidence(path: str):
@@ -158,8 +176,8 @@ def create_app() -> FastAPI:
         if len(q) >= per_ip:
             raise HTTPException(429, f"{per_ip} live runs per hour per visitor; try the examples "
                                      "or come back later")
-        if experiment not in ("auto", "pendulum", "bouncing ball"):
-            raise HTTPException(400, "experiment must be auto, pendulum or bouncing ball")
+        if experiment not in ("auto", "pendulum", "bouncing ball", "oscillator"):
+            raise HTTPException(400, "experiment must be auto, pendulum, bouncing ball or oscillator")
         length_m = _cm(length_cm, "length")
         drop_m = _cm(drop_cm, "drop height")
 
@@ -242,6 +260,92 @@ def _run_job(jobs: Jobs, budget: Budget, jid: str, src: Path, jdir: Path, experi
     finally:
         sam_client.set_progress_hook(None)
         src.unlink(missing_ok=True)  # keep results, not the visitor's video
+
+
+def _hero_trace(folder: str = "VID_20261101_161000", t0: float = 1.0, span: float = 11.0) -> dict:
+    """A real measured swing for the page header: bob position along the swing vs time."""
+    import csv
+
+    import numpy as np
+
+    try:
+        with (EVIDENCE / folder / "track.csv").open(encoding="utf-8") as f:
+            rows = [r for r in csv.DictReader(f) if r["x"] and r["y"]]
+        result = json.loads((EVIDENCE / folder / "result.json").read_text(encoding="utf-8"))["result"]
+    except (FileNotFoundError, KeyError, ValueError):
+        return {"t": [], "s": []}
+    t = np.array([float(r["t"]) for r in rows])
+    xy = np.array([[float(r["x"]), float(r["y"])] for r in rows])
+    m = (t >= t0) & (t <= t0 + span)
+    p = xy[m] - xy[m].mean(axis=0)
+    u = np.linalg.svd(p, full_matrices=False)[2][0]
+    s = p @ (u if u[0] >= 0 else -u)
+    return {"t": np.round(t[m] - t0, 4).tolist(), "s": np.round(s, 2).tolist(),
+            "T0": result["T0"], "sigma_T0": result["sigma_T0"], "g": result["g"],
+            "sigma_g": result["sigma_g"], "frames": int(m.sum()), "length_m": result["length_m"],
+            "cycles": result["cycles"]}
+
+
+def _replay(folder: str = "p3_auto") -> dict:
+    """One real, fully automatic run, step by step, for the page's replay panel."""
+    try:
+        res = json.loads((EVIDENCE / folder / "result.json").read_text(encoding="utf-8"))
+        look = json.loads((EVIDENCE / folder / "look.json").read_text(encoding="utf-8"))
+        lab = json.loads((EVIDENCE / "lab.json").read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        return {}
+    r, v = res["result"], res["video"]
+    p3 = (lab.get("predictions", {}).get("P3") or {}).get("verified_by") or {}
+    sam = json.loads((EVIDENCE / folder / "sam_objects.json").read_text(encoding="utf-8"))
+    frames = max(o["frames"] for o in sam.values()) if sam else None
+    return {
+        "video": {"seconds": v["duration_s"], "frames": v["frames"], "fps": v["fps_mean"],
+                  "camera_shift_px": max(v["camera_motion"]["shift_x_px"],
+                                         v["camera_motion"]["shift_y_px"])},
+        "look": {"object": look["object_name"], "frame": look["frame_index"],
+                 "confidence": look["confidence"], "issues": [i["detail"] for i in look["issues"]],
+                 "image": f"/evidence/{folder}/look.png", "model": look.get("model")},
+        "sam": {"frames": frames},
+        "fit": {"model": r["best_model"], "T0": r["T0"], "sigma_T0": r["sigma_T0"], "g": r["g"],
+                "sigma_g": r["sigma_g"], "cycles": r["cycles"],
+                "runner_up": r["models"][1]["name"], "delta_aic": r["models"][1]["delta_aic"]},
+        "verdict": {"id": "P3", "predicted": p3.get("T0_predicted"),
+                    "sigma_predicted": p3.get("sigma_T0_predicted"), "z": p3.get("z"),
+                    "verdict": p3.get("verdict"), "made": "a day before the video"},
+    }
+
+
+def _scorecard() -> list[dict]:
+    """Every pre-registered prediction and how it ended, from the notebook and the ball runs."""
+    rows = []
+    try:
+        lab = json.loads((EVIDENCE / "lab.json").read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        lab = {"predictions": {}}
+    for pid, p in lab["predictions"].items():
+        v = p.get("verified_by")
+        rows.append({"id": pid, "system": "pendulum", "what": f"pendulum period T₀ at {100 * p['length_m']:.0f} cm",
+                     "predicted": [v["T0_predicted"], v["sigma_T0_predicted"]] if v else
+                     [p["T0"], p["sigma_T0"]],
+                     "measured": [v["T0_measured"], v["sigma_T0_measured"]] if v else None,
+                     "z": v["z"] if v else None, "verdict": v["verdict"] if v else "pending",
+                     "test": f"{v['experiment']}, thread cut to {100 * v['length_used_m']:.1f} cm" if v else ""})
+    pred, s_pred = 0.4275, 0.0036  # B1, committed before the 30 cm drops were filmed
+    for i, sub in enumerate(("", "drop2/", "drop3/"), 1):
+        try:
+            r = json.loads((EVIDENCE / f"VID_20261101_152343/{sub}result_bounce.json")
+                           .read_text(encoding="utf-8"))["result"]
+        except (FileNotFoundError, ValueError):
+            continue
+        z = (r["first_flight_s"] - pred) / (s_pred ** 2 + r["sigma_first_flight_s"] ** 2) ** 0.5
+        verdict = "confirmed" if abs(z) < 2 else "tension" if abs(z) < 3 else "refuted"
+        rows.append({"id": "B1", "system": "bouncing ball", "what": f"ball, first flight after a 30 cm drop ({i} of 3)",
+                     "predicted": [pred, s_pred],
+                     "measured": [r["first_flight_s"], r["sigma_first_flight_s"]], "z": z,
+                     "verdict": verdict,
+                     "test": f"drop {i}; the ball really fell "
+                             f"{100 * r['drop_height_from_timing_m']:.1f} cm, not 30"})
+    return rows
 
 
 def _examples() -> list[dict]:

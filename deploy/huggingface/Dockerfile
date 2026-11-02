@@ -1,4 +1,4 @@
-# Hugging Face Space: builds Galileo straight from the public GitHub repository.
+# Hugging Face Space: builds Isochron AI straight from the public GitHub repository.
 # "Factory rebuild" in the Space settings picks up the latest commit.
 FROM python:3.12-slim
 

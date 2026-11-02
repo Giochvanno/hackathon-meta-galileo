@@ -23,7 +23,8 @@ def app_factory(tmp_path, monkeypatch):
 
 def test_demo_mode_without_a_key(app_factory):
     client, _ = app_factory()
-    assert "Galileo" in client.get("/").text
+    page = client.get("/").text
+    assert "Isochron AI" in page and "oscillator" in page
     st = client.get("/api/status").json()
     assert st["live"] is False and "key" in st["reason"]
     r = client.post("/api/measure", files={"video": ("v.mp4", b"x", "video/mp4")})
@@ -87,3 +88,24 @@ def test_a_job_runs_to_the_end(app_factory, monkeypatch):
     assert client.get(j["files"]["report.png"]).content.startswith(b"\x89PNG")
     assert client.get(f"/runs/{jid}/upload.webm").status_code == 404  # never served
     assert client.get("/api/status").json()["spent_today_usd"] == pytest.approx(0.03)
+
+
+def test_header_trace_and_scorecard_come_from_the_evidence(app_factory):
+    client, _ = app_factory()
+    h = client.get("/api/hero").json()
+    assert len(h["t"]) == len(h["s"]) > 200 and abs(h["T0"] - 1.3982) < 1e-3
+    rows = client.get("/api/scorecard").json()["predictions"]
+    verdicts = {(r["id"], r["verdict"]) for r in rows}
+    assert ("P1", "confirmed") in verdicts and ("P3", "tension") in verdicts
+    assert ("B1", "refuted") in verdicts  # failed predictions are shown too
+
+
+def test_replay_logo_and_favicon(app_factory):
+    client, _ = app_factory()
+    r = client.get("/api/replay").json()
+    assert r["sam"]["frames"] > 900 and r["look"]["model"].startswith("muse-spark")
+    assert abs(r["fit"]["T0"] - 1.3982) < 1e-3 and r["verdict"]["verdict"] == "tension"
+    assert client.get(r["look"]["image"]).status_code == 200
+    for path in ("/static/logo.svg", "/favicon.ico"):
+        res = client.get(path)
+        assert res.status_code == 200 and "<svg" in res.text

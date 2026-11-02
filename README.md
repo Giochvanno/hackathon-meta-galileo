@@ -1,14 +1,19 @@
-# Galileo — your phone is the lab, the AI runs the experiment
+# Isochron AI — point a phone at an experiment, get the physics with error bars
 
 [![CI](https://github.com/Giochvanno/hackathon-meta-galileo/actions/workflows/ci.yml/badge.svg)](https://github.com/Giochvanno/hackathon-meta-galileo/actions/workflows/ci.yml)
 
-Film a simple experiment with a phone. Galileo measures the motion frame by frame with
+Film a simple experiment with a phone. Isochron AI measures the motion frame by frame with
 **SAM 3.1** (Meta Model API), fits competing physical models with honest uncertainties,
 and lets a **Muse Spark** agent run the scientific loop: choose the model the data supports,
 estimate g, register a falsifiable prediction for the next experiment, and verify it
 against a new recording.
 
+It measures a pendulum (period, g, the damping law), a bouncing ball (coefficient of
+restitution, drop height) and **anything that oscillates** (a spring, a ruler on a table edge,
+a swing: period, frequency, damping, quality factor), and says how sure it is.
+
 > Built for the Meta Global AI Developer Hackathon (Indie track), Oct 30 – Nov 4, 2026.
+> The Python package is still called `galileo` (the project's first name). MIT licence.
 
 ## Results at a glance
 
@@ -24,7 +29,7 @@ tracked by SAM 3.1, analysed by the code in this repository, judged by the Muse 
 | SAM 3.1 vs a model-free OpenCV tracker on the same video | periods agree to 0.05 % | |
 | Fully automatic run (Muse Spark finds the ball, SAM 3.1 tracks it) | T0 = 1.3982 s, **identical to a human click** | |
 | Cost | ≈ $0.20 per video (SAM), ≈ $0.02 to look (Spark), ≈ $0.035–0.05 per agent run | |
-| Tests | 67, run in CI on every push | |
+| Tests | 72, run in CI on every push | |
 
 Every number below can be checked: the notebook, the agent logs, the tracks and the fits of
 each run are in [`docs/evidence`](docs/evidence/README.md).
@@ -161,11 +166,14 @@ ball is not taken for it.
 
 ## Web app
 
-`galileo/web.py` + `galileo/static/index.html`: film with the phone's camera in the browser (or
+`galileo/web.py` + `galileo/static/index.html`: the Isochron AI site. Film with the phone's camera in the browser (or
 upload a video), and the same no-click pipeline runs (`galileo/pipeline.py`: Muse Spark looks,
 SAM 3.1 tracks, the physics is fitted, an overlay video is drawn). The page shows Spark's notes
-on the setup, the numbers with their uncertainties, and the plots. Real results from
-`docs/evidence` are shown as examples, with no API calls, including a prediction that failed.
+on the setup, the numbers with their uncertainties (drawn as error bars against the reference),
+and the plots. With no API calls it also replays a real automatic run step by step (what Muse
+Spark saw, SAM's frames, the fit and the agent's verdict, from `docs/evidence/p3_auto`), the
+scorecard of every pre-registered prediction (including the ones that failed), the SAM-vs-OpenCV
+accuracy table and real runs from `docs/evidence`. Light, dark and system themes; no sign-in.
 
 Live runs spend API credits, so they are limited: 45 s per video, 3 runs per visitor per hour,
 a daily budget for everyone (`DAILY_BUDGET_USD`, default $3), checked *before* each paid call.
@@ -174,7 +182,7 @@ Without a key the site runs in demo mode. Visitors' videos are deleted after the
 ```bash
 pip install -e ".[web]"
 uvicorn galileo.web:app --port 7860                    # http://localhost:7860
-docker build -t galileo . && docker run -p 7860:7860 -e MODEL_API_KEY=... galileo
+docker build -t isochron . && docker run -p 7860:7860 -e MODEL_API_KEY=... isochron
 ```
 
 `deploy/huggingface/` holds the two files of the Hugging Face Space, which builds this
@@ -250,6 +258,24 @@ python -m galileo.cli bounce my_drop.mp4 --point 610,240 --prompt-frame 20 \
     --drop-height 0.50 --predict-height 0.30
 python scripts/make_synthetic_bounce.py --e 0.8 --drop 0.5    # known answer, for testing
 ```
+
+## Third system: anything that oscillates
+
+A spring, a ruler clamped to a table edge, a swing, a branch, or a pendulum whose length you
+did not measure. With no length and no scale, the video still gives the period and frequency
+(two independent estimates: the model fit and the zero crossings), the damping law the data
+support (none, viscous, air drag, dry friction, compared by AIC), the damping rate and the
+quality factor Q. Muse Spark recognises these as `oscillator`; the web app falls back to this
+mode when a pendulum is filmed without its length.
+
+```bash
+python -m galileo.cli oscillate video.mp4 --auto          # Muse Spark finds the object, SAM 3.1 tracks it
+python -m galileo.cli oscillate runs/<name>/track.csv      # free: re-fit an existing track
+```
+
+On the E4 pendulum track it gives T = 1.39916 ± 0.00026 s, f = 0.71472 Hz, viscous damping,
+Q ≈ 237: the same period as the pendulum analysis. Tests cover a damped spring, an 11 Hz
+vibration filmed at 60 fps, and a static object (refused: the motion is not above the noise).
 
 ## Validation and lessons learned
 
@@ -361,7 +387,7 @@ verdict was computed or shown, so the length could not be chosen to fit the pred
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 cp .env.example .env                                    # put your MODEL_API_KEY in it
-pytest -q                                               # 67 tests, no network needed
+pytest -q                                               # 72 tests, no network needed
 ```
 
 ffmpeg comes with `imageio-ffmpeg`; no system install needed.
@@ -410,13 +436,14 @@ galileo/
   lab.py         lab notebook: experiments, T0²-vs-L fit, frozen predictions, blind verification
   agent.py       Muse Spark tool loop, tools, run logs with token cost
   assistant.py   Muse Spark looks at the video: object, release frame, pivot/floor, setup issues
+  oscillator.py  any oscillator: period, frequency, damping law, Q (no length needed)
   pipeline.py    one no-click measurement: look -> SAM -> physics -> plots (used by the web app)
   web.py         FastAPI app: camera/upload, jobs with progress, limits, demo examples
   static/        the single-page front end
   synth.py       synthetic pendulum videos with known g and controlled degradations
   report.py      report.png, overlay.png, bounce_report.png
   render.py      overlay video: SAM mask, trail and live numbers on every frame
-  cli.py         probe / pendulum / bounce / analyze / render / lab / agent
+  cli.py         probe / look / pendulum / bounce / oscillate / analyze / render / lab / agent
 scripts/make_synthetic_pendulum.py   video with known g for end-to-end tests
 scripts/make_synthetic_bounce.py     bouncing-ball video with known e
 scripts/accuracy_map.py              81 synthetic videos, one condition changed at a time
@@ -434,4 +461,8 @@ the first commit is dated Oct 30, 2026, and the commit history shows every step 
 | Oct 30 | SAM 3.1 pipeline, physics fits, synthetic validation; first real run (battery, g = 9.92 ± 0.25) |
 | Oct 31 | Muse Spark agent with 7 tools and a lab notebook; golf-ball pendulum E2; **P1 confirmed blind**; overlay video; CI |
 | Nov 1 | E3 filmed; **the agent verified P2 blind by itself**; Muse Spark lab assistant (fully automatic run = human click); E4: P3 in tension (z = −2.2, traced to ±4–5 mm length errors); g from three lengths 9.782 ± 0.127; bouncing-ball module; first real drop e = 0.8638 ± 0.0004 with rolling-shutter correction; prediction B1 registered and **failed on 2 of 3 drops** (hand release 31–34 cm, measured from the video) |
-| Nov 2 | Accuracy map with SAM 3.1 (81 videos): SAM holds where the model-free tracker fails; web app with in-browser camera and live progress; Docker; Hugging Face Space |
+| Nov 2 | Accuracy map with SAM 3.1 (81 videos): SAM holds where the model-free tracker fails; web app with in-browser camera and live progress; Docker; Hugging Face Space; renamed **Isochron AI**, new site (replay of a real run, themes); third system: any oscillator |
+
+## Licence
+
+MIT, see [`LICENSE`](LICENSE).

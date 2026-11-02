@@ -55,7 +55,7 @@ def measure(video: str | Path, out: str | Path, *, experiment: str = "auto",
     raise to refuse a run that would cost too much (called before any paid SAM call)."""
     from . import video as vid
     from .assistant import annotate, look_cached
-    from .cli import _analyze_and_report, _track_video, bounce_from_track
+    from .cli import _analyze_and_report, _track_video, bounce_from_track, oscillation_from_track
 
     def say(name: str, detail: str = "") -> None:
         if step:
@@ -77,12 +77,14 @@ def measure(video: str | Path, out: str | Path, *, experiment: str = "auto",
     lk = look_cached(video_path, t, out)
     annotate(vid.read_frame(video_path, lk.frame_index), lk, out / "look.png")
     kind = lk.experiment if experiment == "auto" else experiment
-    if kind not in ("pendulum", "bouncing ball"):
-        raise ValueError("Muse Spark did not see a pendulum or a bouncing ball here. "
-                         f"It says: {lk.summary}")
+    if kind not in ("pendulum", "bouncing ball", "oscillator"):
+        raise ValueError("Muse Spark did not see a pendulum, a bouncing ball or anything that "
+                         f"oscillates here. It says: {lk.summary}")
+    notes = []
     if kind == "pendulum" and not length_m:
-        raise ValueError("Muse Spark sees a pendulum: enter its length (pivot to the centre of "
-                         "the bob) to get g. The period does not need it, g does.")
+        kind = "oscillator"  # period, frequency and damping need no length; g does
+        notes.append("This is a pendulum, but without its length there is no g: here are the "
+                     "period, frequency and damping. Enter the length to get g.")
 
     frames_tracked = info["frames"] - lk.frame_index
     cost = estimate_cost(frames_tracked)
@@ -97,8 +99,16 @@ def measure(video: str | Path, out: str | Path, *, experiment: str = "auto",
 
     say("physics")
     summary: dict = {"experiment": kind, "look": lk.to_dict(), "video": info,
-                     "cost_usd_estimate": round(cost, 3)}
-    if kind == "pendulum":
+                     "cost_usd_estimate": round(cost, 3), "notes": notes}
+    if kind == "oscillator":
+        res = oscillation_from_track(a, track, out)
+        d = res.to_dict()
+        summary["result"] = {k: d[k] for k in (
+            "period_s", "sigma_period_s", "frequency_hz", "sigma_frequency_hz", "best_model",
+            "damping_per_s", "quality_factor", "cycles", "amplitude_px", "reliable", "problems",
+            "warnings", "models")}
+        files = ["look.png", "oscillation_report.png"]
+    elif kind == "pendulum":
         _analyze_and_report(a, track, out, video_path, info)
         r = json.loads((out / "result.json").read_text())["result"]
         summary["result"] = {k: r[k] for k in (

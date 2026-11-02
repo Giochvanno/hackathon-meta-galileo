@@ -1,7 +1,8 @@
 [project]
 name = "galileo"
 version = "0.1.0"
-description = "A phone camera as a physics lab: SAM 3.1 tracking + model fitting + an AI experimenter."
+description = "Isochron AI: a phone video becomes a physics measurement (SAM 3.1 tracking, Muse Spark, model fitting with error bars)."
+license = { text = "MIT" }
 requires-python = ">=3.10"
 dependencies = [
     "openai>=2.0",

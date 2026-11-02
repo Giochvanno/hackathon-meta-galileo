@@ -290,6 +290,45 @@ def _print_bounce(res, preds: list, g: float, out: Path) -> None:
     print(f"\n  {out / 'bounce_report.png'}\n  {out / 'result_bounce.json'}")
 
 
+# -------------------------------------------------------------- oscillate ---
+def oscillation_from_track(a, track: Track, out: Path):
+    """Fit any back-and-forth motion and write result_oscillation.json and oscillation_report.png."""
+    from .oscillator import analyze_oscillation, oscillation_report
+
+    work = track.clean().window(a.t_start, a.t_end)
+    res = analyze_oscillation(work)
+    out.mkdir(parents=True, exist_ok=True)
+    payload = {"system": "oscillator", "result": res.to_dict(), "tracker": track.source,
+               "track_meta": track.meta}
+    (out / "result_oscillation.json").write_text(json.dumps(payload, indent=2, default=float))
+    oscillation_report(work, res, out / "oscillation_report.png")
+    return res
+
+
+def cmd_oscillate(a) -> None:
+    """Any oscillator (spring, ruler, swing...): period, frequency, damping, Q. No length needed."""
+    if a.video.lower().endswith(".csv"):
+        track = Track.from_csv(a.video)
+        out = Path(a.out or Path(a.video).parent)
+    else:
+        track, out, _, _ = _track_video(a)
+    res = oscillation_from_track(a, track, out)
+    print()
+    if not res.reliable:
+        print("  !!! UNRELIABLE MEASUREMENT: " + "; ".join(res.problems) + "\n")
+    print(f"  period    T = {res.period_s:.5f} ± {res.sigma_period_s:.5f} s  ({res.cycles:.1f} cycles)")
+    if res.period_crossings_s:
+        print(f"  crossings T = {res.period_crossings_s:.5f} ± {res.sigma_period_crossings_s:.5f} s"
+              f"   agreement {res.consistency_z:.1f}σ")
+    print(f"  frequency f = {res.frequency_hz:.5f} ± {res.sigma_frequency_hz:.5f} Hz")
+    q = f", quality factor Q = {res.quality_factor:.0f}" if res.quality_factor else ""
+    print(f"  damping: {res.best_model}, rate {res.damping_per_s:.4f} /s{q}")
+    print("  models by AIC: " + ", ".join(f"{m['name']} ΔAIC={m['delta_aic']:.1f}" for m in res.models))
+    for w in res.warnings:
+        print("  ! " + w)
+    print(f"\n  {out / 'oscillation_report.png'}\n  {out / 'result_oscillation.json'}")
+
+
 def cmd_analyze(a) -> None:
     track = Track.from_csv(a.track_csv)
     out = Path(a.out or Path(a.track_csv).parent)
@@ -480,6 +519,23 @@ def main(argv: list[str] | None = None) -> None:
     bo.add_argument("--height", type=float, default=0.0, help="altitude, m")
     bo.add_argument("--out")
     bo.set_defaults(func=cmd_bounce)
+
+    os_ = sub.add_parser("oscillate", help="any oscillator: period, frequency, damping (no length)")
+    os_.add_argument("video", help="a video, or a track.csv from an earlier run")
+    os_.add_argument("--tracker", choices=["sam", "opencv"], default="sam")
+    os_.add_argument("--auto", action="store_true",
+                     help="Muse Spark finds the object and the start frame (no --point needed)")
+    os_.add_argument("--prompt", default="moving object", help="noun phrase for SAM 3.1")
+    os_.add_argument("--point", help="X,Y click on the moving object on --prompt-frame")
+    os_.add_argument("--box", help="L,T,R,B box on --prompt-frame instead of a phrase")
+    os_.add_argument("--prompt-frame", type=int, default=0)
+    os_.add_argument("--refresh", action="store_true")
+    os_.add_argument("--roi", help="L,T,R,B: opencv tracker ignores motion outside this box")
+    os_.add_argument("--no-stabilize", action="store_true")
+    os_.add_argument("--t-start", type=float)
+    os_.add_argument("--t-end", type=float)
+    os_.add_argument("--out")
+    os_.set_defaults(func=cmd_oscillate)
 
     an = sub.add_parser("analyze", help="re-fit an existing track.csv")
     an.add_argument("track_csv")

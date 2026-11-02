@@ -1,4 +1,4 @@
-# Galileo web app: film or upload an experiment, get the measurement back.
+# Isochron AI web app: film or upload an experiment, get the measurement back.
 #   docker build -t galileo .
 #   docker run -p 7860:7860 -e MODEL_API_KEY=... galileo        # without the key: demo mode
 FROM python:3.12-slim
