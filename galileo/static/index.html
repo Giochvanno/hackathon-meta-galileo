@@ -7,10 +7,10 @@
 <meta name="description" content="A measuring instrument in a phone video: Muse Spark finds the moving object, SAM 3.1 tracks it on every frame, tested code fits the physics with error bars, and an agent tests its own predictions blind.">
 <meta property="og:title" content="Isochron AI: point a phone at an experiment, get the physics with error bars">
 <meta property="og:description" content="Muse Spark finds the object, SAM 3.1 tracks it on every frame, and tested code measures the period, g, bounciness or damping. Blind predictions included, the failed ones too.">
-<meta property="og:image" content="/static/og.png">
+<meta property="og:image" content="static/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#f5b700">
-<link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+<link rel="icon" href="static/logo.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&display=swap" rel="stylesheet">
@@ -132,7 +132,8 @@ h2.t { font-stretch: 112%; font-weight: 740; font-size: clamp(28px, 3.6vw, 42px)
 
 /* measure */
 .bench { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 28px; align-items: start; }
-@media (max-width: 880px) { .bench { grid-template-columns: 1fr; } }
+@media (max-width: 880px) { .bench { grid-template-columns: minmax(0, 1fr); } }
+.bench > * { min-width: 0; }
 .rail { list-style: none; margin: 0; padding: 0; counter-reset: s; }
 .rail li { counter-increment: s; position: relative; padding: 0 0 22px 46px; color: var(--ink2); font-size: 15px; }
 .rail li::before { content: counter(s); position: absolute; left: 0; top: -2px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
@@ -190,7 +191,7 @@ table.data tr:last-child td { border-bottom: 0; }
 table.data .id { font-weight: 750; font-stretch: 112%; }
 table.data .n { white-space: nowrap; }
 table.data .good { color: var(--ok); font-weight: 650; } table.data .lost { color: var(--bad); font-weight: 650; }
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   table.data thead { display: none; }
   table.data, table.data tbody, table.data tr, table.data td { display: block; width: 100%; }
   table.data tr { border-bottom: 1px solid var(--rule); padding: 10px 0; }
@@ -231,15 +232,18 @@ footer.foot { margin-top: 110px; border-top: 1px solid var(--rule); padding: 36p
 .foot ul { list-style: none; margin: 0; padding: 0; } .foot li { margin: 0 0 8px; }
 .foot a { color: var(--ink2); text-decoration: none; } .foot a:hover { color: var(--ink); }
 .foot .base { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--rule); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; font-size: 14px; }
+.skip { position: absolute; left: -999px; top: 8px; z-index: 20; background: var(--sun); color: var(--sun-ink); padding: 8px 14px; border-radius: 10px; font-weight: 700; }
+.skip:focus { left: 12px; }
 dialog { border: 0; padding: 0; background: transparent; max-width: 96vw; }
 dialog img { max-width: 96vw; max-height: 92vh; border-radius: 10px; display: block; }
 dialog::backdrop { background: rgba(5, 10, 15, .85); }
 </style>
 </head>
 <body>
+<a class="skip" href="#top">Skip to content</a>
 <nav class="top" aria-label="Main">
   <div class="wrap">
-    <a class="brand" href="#top"><img src="/static/logo.svg" alt="">Isochron AI</a>
+    <a class="brand" href="#top"><img src="static/logo.svg" alt="">Isochron AI</a>
     <div class="links"><a href="#replay">Demo</a><a href="#how">How it works</a><a href="#predictions">Predictions</a><a href="#accuracy">Accuracy</a><a href="#own">Run it yourself</a></div>
     <div class="navr">
       <button class="iconbtn" id="theme" type="button" aria-label="Theme: system"></button>
@@ -268,7 +272,7 @@ dialog::backdrop { background: rgba(5, 10, 15, .85); }
           <div class="num">0.03 %</div><div class="vs">A tracker without a model lost the object in 5 of 6.</div></div>
       </div>
       <div class="ctas"><button class="cta" type="button" id="watch">Watch a real run</button><a class="ghost" href="#measure">Measure your video</a></div>
-      <div class="trust"><span>72 tests in CI</span><span>Lab notebook and agent logs in the repository</span><span>No sign-in</span><span>MIT licence</span></div>
+      <div class="trust"><span>74 tests in CI</span><span>Lab notebook and agent logs in the repository</span><span>No sign-in</span><span>MIT licence</span></div>
     </div>
 
     <aside class="replay" id="replay" aria-label="A real run, replayed">
@@ -326,7 +330,17 @@ dialog::backdrop { background: rgba(5, 10, 15, .85); }
         <li><b>SAM 3.1 tracks</b>A mask of the object on every frame.<div class="live"></div></li>
         <li><b>Physics with error bars</b>The model the data supports, and how sure it is.<div class="live"></div></li>
       </ol>
-      <div class="panel">
+      <div class="panel hidden" id="local">
+        <h3 style="margin:0 0 6px;font-size:20px">Run it on your own video</h3>
+        <p class="note" style="margin:0 0 12px">The same site, with the camera and live progress, on your computer. A run costs about $0.10–0.25 of your own API credits.</p>
+<pre tabindex="0">git clone https://github.com/Giochvanno/hackathon-meta-galileo
+cd hackathon-meta-galileo
+pip install -e ".[web]"
+cp .env.example .env                    # then put your key in .env
+uvicorn galileo.web:app --port 7860    # open http://localhost:7860</pre>
+        <p class="note">Or straight from the command line: <code>python -m galileo.cli pendulum video.mp4 --auto --length 0.489</code>. No key? Re-measure our real runs for free: see <a href="https://github.com/Giochvanno/hackathon-meta-galileo#try-it-in-2-minutes" target="_blank" rel="noopener">Try it in 2 minutes</a>.</p>
+      </div>
+      <div class="panel" id="capture">
         <div class="seg" role="group" aria-label="Experiment">
           <button type="button" data-exp="auto" aria-pressed="true">Auto</button>
           <button type="button" data-exp="pendulum" aria-pressed="false">Pendulum</button>
@@ -336,10 +350,10 @@ dialog::backdrop { background: rgba(5, 10, 15, .85); }
         <p class="note" id="seg-note">Auto: Muse Spark decides what the experiment is.</p>
         <div class="fields">
           <div class="field" id="f-len"><label for="len">Pendulum length, cm</label>
-            <input id="len" type="number" inputmode="decimal" step="0.1" min="3" placeholder="48.9">
+            <input id="len" type="text" inputmode="decimal" autocomplete="off" placeholder="48.9">
             <small>From where the string is held to the centre of the bob. Without it you get the period, not g.</small></div>
           <div class="field" id="f-drop"><label for="drop">Drop height, cm</label>
-            <input id="drop" type="number" inputmode="decimal" step="0.1" min="3" placeholder="30">
+            <input id="drop" type="text" inputmode="decimal" autocomplete="off" placeholder="30">
             <small>Optional. Floor to the bottom of the ball.</small></div>
         </div>
         <div class="capture">
@@ -362,14 +376,14 @@ dialog::backdrop { background: rgba(5, 10, 15, .85); }
   <section class="block" id="predictions">
     <h2 class="t">Predictions made before the experiment.</h2>
     <p class="sub">A prediction counts only if it was written down before the video existed. The agent froze each one in its lab notebook. This is every one of them, including those that failed, and why.</p>
-    <table class="data"><thead><tr><th>Prediction</th><th>Of</th><th>Predicted</th><th>Measured</th><th>Off by</th><th>Verdict</th><th>Tested by</th></tr></thead><tbody id="score"></tbody></table>
+    <table class="data"><thead><tr><th scope="col">Prediction</th><th scope="col">Of</th><th scope="col">Predicted</th><th scope="col">Measured</th><th scope="col">Off by</th><th scope="col">Verdict</th><th scope="col">Tested by</th></tr></thead><tbody id="score"></tbody></table>
     <p class="after">Both misses trace back to the ruler, not the physics: hand releases from 31–34 cm instead of 30, and lengths measured to ±4–5 mm instead of ±3. The instrument measured the drop heights itself, from the timing and from the pixels, and the two agree within half a centimetre.</p>
   </section>
 
   <section class="block" id="accuracy">
     <h2 class="t">Where SAM 3.1 earns its place.</h2>
     <p class="sub">81 test videos with a known g, each made harder in one way, measured once with SAM 3.1 and once with a tracker that uses no model (background subtraction).</p>
-    <table class="data"><thead><tr><th>Condition</th><th>Without a model</th><th>With SAM 3.1</th></tr></thead><tbody>
+    <table class="data"><thead><tr><th scope="col">Condition</th><th scope="col">Without a model</th><th scope="col">With SAM 3.1</th></tr></thead><tbody>
       <tr><td data-k="Condition">Ball 40 grey levels brighter than the background</td><td data-k="Without a model" class="lost">lost in 2 of 3</td><td data-k="With SAM 3.1" class="good">0.03 %, 3 of 3</td></tr>
       <tr><td data-k="Condition">Ball 15 grey levels brighter than the background</td><td data-k="Without a model" class="lost">lost in 3 of 3</td><td data-k="With SAM 3.1" class="good">0.025 %, 3 of 3</td></tr>
       <tr><td data-k="Condition">Strong damping: the swing dies in seconds</td><td data-k="Without a model" class="lost">flagged unreliable</td><td data-k="With SAM 3.1" class="good">0.10 %</td></tr>
@@ -390,13 +404,13 @@ dialog::backdrop { background: rgba(5, 10, 15, .85); }
     <p class="sub">Everything on this page is the open-source command line, with a Meta Model API key.</p>
     <div class="own">
       <div><h3>Measure a video</h3><p>Muse Spark sets it up, SAM 3.1 tracks, the physics is fitted.</p>
-<pre>pip install -e ".[web]"
+<pre tabindex="0">pip install -e ".[web]"
 python -m galileo.cli look     video.mp4
 python -m galileo.cli pendulum video.mp4 --auto --length 0.489
 python -m galileo.cli bounce   video.mp4 --auto --drop-height 0.30
 python -m galileo.cli oscillate video.mp4 --auto</pre></div>
       <div><h3>Let the agent run the lab</h3><p>Add experiments to the notebook; the agent picks the model, estimates g, predicts the next experiment and checks it when you film it.</p>
-<pre>python -m galileo.cli lab add runs/video/track.csv --length 0.489
+<pre tabindex="0">python -m galileo.cli lab add runs/video/track.csv --length 0.489
 python -m galileo.cli agent
 python -m galileo.cli lab show
 uvicorn galileo.web:app --port 7860   # this site</pre></div>
@@ -407,7 +421,7 @@ uvicorn galileo.web:app --port 7860   # this site</pre></div>
 <footer class="foot">
   <div class="wrap">
     <div class="cols">
-      <div><a class="brand" href="#top"><img src="/static/logo.svg" alt="">Isochron AI</a>
+      <div><a class="brand" href="#top"><img src="static/logo.svg" alt="">Isochron AI</a>
         <p style="margin:12px 0 0;max-width:34ch">A phone video becomes a physics measurement, with the error bar and the evidence.</p></div>
       <div><h4>Product</h4><ul><li><a href="#replay">Demo</a></li><li><a href="#measure">Measure a video</a></li><li><a href="#systems">What it measures</a></li></ul></div>
       <div><h4>Learn</h4><ul><li><a href="#how">How it works</a></li><li><a href="#predictions">Predictions</a></li><li><a href="#accuracy">Accuracy</a></li>
@@ -419,9 +433,11 @@ uvicorn galileo.web:app --port 7860   # this site</pre></div>
     <div class="base"><span>MIT licence. Built for the Meta Global AI Developer Hackathon 2026.</span><span>Every result on this page is a real measurement.</span></div>
   </div>
 </footer>
-<dialog id="zoom"><img alt=""></dialog>
+<dialog id="zoom" aria-label="Enlarged picture"><img src="data:," alt=""></dialog>
 
 <script>
+const STATIC_SITE = false;  // set to true by scripts/build_static.py for the GitHub Pages copy
+const api = (name) => STATIC_SITE ? `api/${name}.json` : `api/${name}`;
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t ?? "").replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 const pm = (v, s, d = 4) => `${v.toFixed(d)} ± ${s.toFixed(d)}`;
@@ -488,7 +504,7 @@ async function runReplay() {
   replaying = false;
 }
 async function loadReplay() {
-  [R, H] = await Promise.all([fetch("/api/replay").then((r) => r.json()), fetch("/api/hero").then((r) => r.json())]);
+  [R, H] = await Promise.all([fetch(api("replay")).then((r) => r.json()), fetch(api("hero")).then((r) => r.json())]);
   if (!R.video) { $("replay").classList.add("hidden"); return; }
   fillReplay(2);
   const io = new IntersectionObserver((es) => { if (es[0].isIntersecting) { io.disconnect(); runReplay(); } }, {threshold: .4});
@@ -557,13 +573,13 @@ $("go").onclick = async () => {
   fd.append("length_cm", $("len").value); fd.append("drop_cm", $("drop").value);
   $("go").disabled = true; rail("prepare", "Uploading");
   try {
-    const r = await fetch("/api/measure", {method: "POST", body: fd}), d = await r.json();
+    const r = await fetch("api/measure", {method: "POST", body: fd}), d = await r.json();
     if (!r.ok) throw new Error(d.detail || r.statusText);
     poll(d.job);
   } catch (e) { rail("none"); err(e.message); ready(); }
 };
 async function poll(id) {
-  const j = await (await fetch(`/api/jobs/${id}`)).json();
+  const j = await (await fetch(`api/jobs/${id}`)).json();
   if (j.status === "error") { rail("none"); err(j.error); ready(); return; }
   if (j.status === "done") { rail("done"); show(j); ready(); return; }
   rail(j.step === "queued" ? "prepare" : j.step, j.detail, j.frames_received);
@@ -612,7 +628,7 @@ function show(j) {
 
 /* ---------- scorecard, runs ---------- */
 async function scorecard() {
-  const d = await (await fetch("/api/scorecard")).json();
+  const d = await (await fetch(api("scorecard"))).json();
   $("score").innerHTML = d.predictions.map((p) => {
     const pct = p.measured ? 100 * (p.measured[0] - p.predicted[0]) / p.predicted[0] : null;
     return `<tr><td class="id">${esc(p.id)}</td><td data-k="Of">${esc(p.what)}</td>
@@ -626,7 +642,7 @@ const media = (im, title) => im.src.endsWith(".mp4")
   ? `<video src="${im.src}" poster="${im.poster || ""}" controls muted loop playsinline autoplay preload="metadata" aria-label="${esc(title)}: ${esc(im.label)}"></video>`
   : `<img src="${im.src}" alt="${esc(title)}: ${esc(im.label)}" loading="lazy">`;
 async function runs() {
-  const d = await (await fetch("/api/examples")).json();
+  const d = await (await fetch(api("examples"))).json();
   $("runlist").innerHTML = d.examples.map((e) => {
     const n = e.numbers;
     const nums = e.kind === "pendulum"
@@ -650,8 +666,12 @@ function zoomable(root) { root.querySelectorAll("img").forEach((im) => im.onclic
 $("zoom").onclick = () => $("zoom").close();
 
 async function mode() {
-  const s = await (await fetch("/api/status")).json();
-  if (s.live) {
+  const s = await (await fetch(api("status"))).json();
+  if (STATIC_SITE) {
+    $("mode").textContent = "This page is a static copy: it makes no API calls, so everything above is free to explore. To measure your own video, run the same site on your computer with a Meta Model API key.";
+    $("capture").classList.add("hidden");
+    $("local").classList.remove("hidden");
+  } else if (s.live) {
     $("mode").textContent = `Film or choose a video. A run takes 2–4 minutes and spends about $0.10–0.25 of API credits, so there are limits: ${s.runs_per_ip_hour} runs per hour per visitor and $${s.budget_usd.toFixed(0)} a day for everyone ($${s.spent_today_usd.toFixed(2)} used today).`;
   } else {
     $("mode").textContent = `Live runs are off on this copy (${s.reason}). The replay, predictions and measurements on this page are real; to measure your own video, run it from the repository.`;

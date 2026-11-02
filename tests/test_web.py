@@ -2,6 +2,7 @@
 
 import io
 import time
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,14 +11,15 @@ from fastapi.testclient import TestClient
 @pytest.fixture
 def app_factory(tmp_path, monkeypatch):
     def make(**env):
-        for k in ("MODEL_API_KEY", "META_API_KEY", "DEMO_ONLY"):
+        from galileo import web  # importing may read a developer's .env: clear it below
+
+        for k in ("MODEL_API_KEY", "META_API_KEY", "DEMO_ONLY", "DAILY_BUDGET_USD",
+                  "RUNS_PER_IP_HOUR", "MAX_UPLOAD_MB"):
             monkeypatch.delenv(k, raising=False)
         monkeypatch.setenv("GALILEO_DATA", str(tmp_path / "web"))
         for k, v in env.items():
             monkeypatch.setenv(k, v)
-        from galileo import web
-
-        return TestClient(web.create_app()), web
+        return TestClient(web.create_app(load_env=False)), web
     return make
 
 
@@ -115,3 +117,33 @@ def test_replay_logo_and_favicon(app_factory):
     for path in ("/static/logo.svg", "/favicon.ico"):
         res = client.get(path)
         assert res.status_code == 200 and "<svg" in res.text
+
+
+def test_limits_cannot_be_dodged_and_are_checked_before_upload(app_factory, monkeypatch):
+    client, web = app_factory(MODEL_API_KEY="test", RUNS_PER_IP_HOUR="2", MAX_UPLOAD_MB="1")
+    monkeypatch.setattr(web, "_run_job", lambda *a, **k: None)
+    data = Path(web.os.environ["GALILEO_DATA"])
+
+    def post(fake: str, body: bytes = b"x", name: str = "v.mp4"):
+        # a visitor can write anything on the left; the hosting proxy appends the real address
+        return client.post("/api/measure", files={"video": (name, body, "video/mp4")},
+                           headers={"X-Forwarded-For": f"{fake}, 1.1.1.1, 10.0.0.2"})
+
+    codes = [post(f"8.8.8.{i}").status_code for i in range(4)]
+    assert codes == [200, 200, 429, 429]  # faking the address does not give new runs
+
+    before = set(data.iterdir())
+    assert post("x", name="evil.exe", body=b"x").status_code in (400, 429)
+    big = client.post("/api/measure", files={"video": ("v.mp4", b"x" * 3_000_000, "video/mp4")},
+                      headers={"X-Forwarded-For": "9.9.9.9"})
+    assert big.status_code == 413
+    assert set(data.iterdir()) == before  # nothing left behind
+
+    monkeypatch.setattr(web.Jobs, "waiting", lambda self: web.MAX_WAITING_JOBS)
+    busy = client.post("/api/measure", files={"video": ("v.mp4", b"x", "video/mp4")},
+                       headers={"X-Forwarded-For": "9.9.9.10"})
+    assert busy.status_code == 503 and "queue" in busy.json()["detail"]
+
+    r = client.get("/")
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert client.get("/openapi.json").status_code == 404

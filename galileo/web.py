@@ -18,8 +18,10 @@ The demo examples are the real results committed in docs/evidence: they cost not
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
+import shutil
 import threading
 import time
 import traceback
@@ -30,7 +32,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -38,6 +40,26 @@ STATIC = Path(__file__).resolve().parent / "static"
 EVIDENCE = ROOT / "docs" / "evidence"
 SERVED = {"look.png", "report.png", "overlay.png", "overlay.mp4", "bounce_report.png",
           "oscillation_report.png", "summary.json"}
+
+
+MAX_WAITING_JOBS = 4  # queued or running at once; more visitors are asked to come back
+
+
+def visitor_ip(request) -> str:
+    """The visitor's address, as added by the hosting proxy.
+
+    X-Forwarded-For is "what the client claimed, ..., what each proxy saw". A visitor can put
+    anything on the left, so the rightmost public address (the one the outermost proxy
+    appended) is used; private addresses of internal proxies are skipped."""
+    hops = [h.strip() for h in (request.headers.get("x-forwarded-for") or "").split(",") if h.strip()]
+    for h in reversed(hops):
+        try:
+            ip = ipaddress.ip_address(h)
+        except ValueError:
+            continue
+        if ip.is_global:
+            return str(ip)
+    return request.client.host if request.client else "?"
 
 
 def _env_float(name: str, default: float) -> float:
@@ -94,13 +116,24 @@ class Jobs:
         with self.lock:
             self.state[jid].update(kw, updated=time.time())
 
+    def waiting(self) -> int:
+        with self.lock:
+            return sum(j["status"] in ("queued", "running") for j in self.state.values())
+
     def get(self, jid: str) -> dict | None:
         with self.lock:
             j = self.state.get(jid)
             return dict(j) if j else None
 
 
-def create_app() -> FastAPI:
+def create_app(load_env: bool = True) -> FastAPI:
+    if load_env:  # MODEL_API_KEY etc. from .env, so a local copy runs live like the command line
+        try:
+            from dotenv import load_dotenv
+
+            load_dotenv()
+        except ImportError:
+            pass
     data = Path(os.environ.get("GALILEO_DATA", ROOT / "runs" / "web"))
     data.mkdir(parents=True, exist_ok=True)
     budget = Budget(data / "budget.json", _env_float("DAILY_BUDGET_USD", 3.0))
@@ -116,7 +149,43 @@ def create_app() -> FastAPI:
             return False, "no Meta Model API key is configured here, so only the examples run"
         return True, ""
 
-    app = FastAPI(title="Isochron AI", docs_url=None, redoc_url=None)
+    def limits_hit(ip: str) -> tuple[int, str] | None:
+        """Cheap checks, done before a video is accepted."""
+        live, why = live_enabled()
+        if not live:
+            return 503, why
+        q = recent[ip]
+        while q and time.time() - q[0] > 3600:
+            q.popleft()
+        if len(q) >= per_ip:
+            return 429, f"{per_ip} live runs per hour per visitor; try the examples or come back later"
+        if jobs.waiting() >= MAX_WAITING_JOBS:
+            return 503, "the measuring queue is full right now; try again in a few minutes"
+        if budget.spent() >= budget.daily:
+            return 503, (f"today's budget for live runs (${budget.daily:.2f}) is used up; the examples "
+                         "still work, and it resets at 00:00 UTC")
+        return None
+
+    app = FastAPI(title="Isochron AI", docs_url=None, redoc_url=None, openapi_url=None)
+
+    @app.middleware("http")
+    async def guard(request: Request, call_next):
+        # Refuse a run before its video is received: FastAPI reads the whole upload first.
+        if request.method == "POST" and request.url.path == "/api/measure":
+            hit = limits_hit(visitor_ip(request))
+            if hit is None:
+                try:
+                    declared = int(request.headers.get("content-length") or 0)
+                except ValueError:
+                    declared = 0
+                if declared > max_mb * 1e6 + 1e6:
+                    hit = (413, f"the video is larger than {max_mb:.0f} MB")
+            if hit:
+                return JSONResponse({"detail": hit[1]}, status_code=hit[0])
+        response: Response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        return response
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
     @app.get("/favicon.ico")
@@ -126,6 +195,11 @@ def create_app() -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     def index():
         return HTMLResponse((STATIC / "index.html").read_text(encoding="utf-8"))
+
+    @app.get("/api/whoami")
+    def whoami(request: Request):
+        """What the rate limit sees for you (to check the proxy setup after deploying)."""
+        return {"ip": visitor_ip(request), "forwarded": request.headers.get("x-forwarded-for")}
 
     @app.get("/healthz")
     def healthz():
@@ -165,28 +239,22 @@ def create_app() -> FastAPI:
     async def measure(request: Request, video: UploadFile = File(...),
                       experiment: str = Form("auto"), length_cm: str = Form(""),
                       drop_cm: str = Form("")):
-        live, why = live_enabled()
-        if not live:
-            raise HTTPException(503, why)
-        ip = (request.headers.get("x-forwarded-for") or request.client.host or "?").split(",")[0]
-        q = recent[ip]
+        ip = visitor_ip(request)
+        hit = limits_hit(ip)
+        if hit:
+            raise HTTPException(*hit)
         now = time.time()
-        while q and now - q[0] > 3600:
-            q.popleft()
-        if len(q) >= per_ip:
-            raise HTTPException(429, f"{per_ip} live runs per hour per visitor; try the examples "
-                                     "or come back later")
         if experiment not in ("auto", "pendulum", "bouncing ball", "oscillator"):
             raise HTTPException(400, "experiment must be auto, pendulum, bouncing ball or oscillator")
         length_m = _cm(length_cm, "length")
         drop_m = _cm(drop_cm, "drop height")
 
-        jid = uuid.uuid4().hex[:12]
-        jdir = jobs.data / jid
-        jdir.mkdir(parents=True)
         suffix = Path(video.filename or "video.mp4").suffix.lower() or ".mp4"
         if suffix not in (".mp4", ".mov", ".webm", ".mkv", ".m4v", ".3gp"):
             raise HTTPException(400, "send a video file (mp4, mov, webm)")
+        jid = uuid.uuid4().hex[:12]
+        jdir = jobs.data / jid
+        jdir.mkdir(parents=True)
         src = jdir / f"upload{suffix}"
         size = 0
         with src.open("wb") as f:
@@ -194,10 +262,10 @@ def create_app() -> FastAPI:
                 size += len(chunk)
                 if size > max_mb * 1e6:
                     f.close()
-                    src.unlink(missing_ok=True)
+                    shutil.rmtree(jdir, ignore_errors=True)
                     raise HTTPException(413, f"the video is larger than {max_mb:.0f} MB")
                 f.write(chunk)
-        q.append(now)
+        recent[ip].append(now)
         with jobs.lock:
             jobs.state[jid] = {"id": jid, "status": "queued", "step": "queued", "detail": "",
                                "created": now, "updated": now, "frames_received": 0}
@@ -256,7 +324,8 @@ def _run_job(jobs: Jobs, budget: Budget, jid: str, src: Path, jdir: Path, experi
         jobs.update(jid, status="error", error=str(e))
     except Exception as e:  # noqa: BLE001 - report, do not crash the server
         (jdir / "error.txt").write_text(traceback.format_exc(), encoding="utf-8")
-        jobs.update(jid, status="error", error=f"{type(e).__name__}: {e}")
+        first = (str(e).strip().splitlines() or [type(e).__name__])[0][:240]
+        jobs.update(jid, status="error", error=f"the measurement failed: {first}")
     finally:
         sam_client.set_progress_hook(None)
         src.unlink(missing_ok=True)  # keep results, not the visitor's video
@@ -304,7 +373,7 @@ def _replay(folder: str = "p3_auto") -> dict:
                                          v["camera_motion"]["shift_y_px"])},
         "look": {"object": look["object_name"], "frame": look["frame_index"],
                  "confidence": look["confidence"], "issues": [i["detail"] for i in look["issues"]],
-                 "image": f"/evidence/{folder}/look.png", "model": look.get("model")},
+                 "image": _light(f"{folder}/look.png"), "model": look.get("model")},
         "sam": {"frames": frames},
         "fit": {"model": r["best_model"], "T0": r["T0"], "sigma_T0": r["sigma_T0"], "g": r["g"],
                 "sigma_g": r["sigma_g"], "cycles": r["cycles"],
@@ -375,6 +444,12 @@ BALL_FIT = ("Top: the tracked height. Blue arcs are the free-flight parabolas fi
             "factor is the bounciness e.")
 
 
+def _light(rel: str) -> str:
+    """The page uses a light JPG copy of a photo when there is one (the PNG stays as evidence)."""
+    jpg = Path(rel).with_suffix(".jpg")
+    return f"/evidence/{jpg.as_posix() if rel.endswith('.png') and (EVIDENCE / jpg).exists() else rel}"
+
+
 def _examples() -> list[dict]:
     """Precomputed real runs from docs/evidence (no API calls)."""
     out = []
@@ -390,7 +465,7 @@ def _examples() -> list[dict]:
         if not d:
             return
         r = d["result"]
-        imgs = [{"src": f"/evidence/{folder}/{n}", "label": label, "caption": cap}
+        imgs = [{"src": _light(f"{folder}/{n}"), "label": label, "caption": cap}
                 for n, label, cap in PENDULUM_VIEWS if (EVIDENCE / folder / n).exists()]
         for im in imgs:
             if im["src"].endswith(".mp4"):

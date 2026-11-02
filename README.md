@@ -2,6 +2,11 @@
 
 [![CI](https://github.com/Giochvanno/hackathon-meta-galileo/actions/workflows/ci.yml/badge.svg)](https://github.com/Giochvanno/hackathon-meta-galileo/actions/workflows/ci.yml)
 
+**Site: [giochvanno.github.io/hackathon-meta-galileo](https://giochvanno.github.io/hackathon-meta-galileo/)**:
+a replay of a real fully automatic run, SAM 3.1's tracking video, every blind prediction and
+the measured runs. It is the static copy of the app (no API calls); the live app, with the
+camera, runs locally with your key (see below).
+
 Film a simple experiment with a phone. Isochron AI measures the motion frame by frame with
 **SAM 3.1** (Meta Model API), fits competing physical models with honest uncertainties,
 and lets a **Muse Spark** agent run the scientific loop: choose the model the data supports,
@@ -14,6 +19,33 @@ a swing: period, frequency, damping, quality factor), and says how sure it is.
 
 > Built for the Meta Global AI Developer Hackathon (Indie track), Oct 30 – Nov 4, 2026.
 > The Python package is still called `galileo` (the project's first name). MIT licence.
+
+## Try it in 2 minutes
+
+```bash
+git clone https://github.com/Giochvanno/hackathon-meta-galileo && cd hackathon-meta-galileo
+python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
+pip install -e ".[web]"
+```
+
+**No API key needed:** re-measure our real runs from the tracks SAM 3.1 produced (saved in
+`docs/evidence`). Each command prints the numbers and writes the plots to `runs/check/`.
+
+```bash
+python -m galileo.cli analyze   docs/evidence/p3_auto/track.csv --length 0.489 --out runs/check   # T0 = 1.3982 ± 0.0003 s, g = 9.875 ± 0.061
+python -m galileo.cli bounce    docs/evidence/VID_20261101_142028/track.csv --out runs/check      # e = 0.8638 ± 0.0004
+python -m galileo.cli oscillate docs/evidence/p3_auto/track.csv --out runs/check                  # T = 1.3992 s, Q ≈ 237
+```
+
+**With your own Meta Model API key** (`cp .env.example .env`, put `MODEL_API_KEY` in it), measure
+your own video with no clicks, or run this site locally (about $0.10–0.25 per video):
+
+```bash
+python -m galileo.cli pendulum  my_video.mp4 --auto --length 0.489    # pivot to ball centre, in metres
+python -m galileo.cli oscillate my_video.mp4 --auto                   # anything that oscillates, no length
+python -m galileo.cli bounce    my_video.mp4 --auto                   # a ball dropped on a hard floor
+uvicorn galileo.web:app --port 7860                                    # http://localhost:7860
+```
 
 ## Results at a glance
 
@@ -29,7 +61,7 @@ tracked by SAM 3.1, analysed by the code in this repository, judged by the Muse 
 | SAM 3.1 vs a model-free OpenCV tracker on the same video | periods agree to 0.05 % | |
 | Fully automatic run (Muse Spark finds the ball, SAM 3.1 tracks it) | T0 = 1.3982 s, **identical to a human click** | |
 | Cost | ≈ $0.20 per video (SAM), ≈ $0.02 to look (Spark), ≈ $0.035–0.05 per agent run | |
-| Tests | 72, run in CI on every push | |
+| Tests | 74, run in CI on every push | |
 
 Every number below can be checked: the notebook, the agent logs, the tracks and the fits of
 each run are in [`docs/evidence`](docs/evidence/README.md).
@@ -175,9 +207,12 @@ Spark saw, SAM's frames, the fit and the agent's verdict, from `docs/evidence/p3
 scorecard of every pre-registered prediction (including the ones that failed), the SAM-vs-OpenCV
 accuracy table and real runs from `docs/evidence`. Light, dark and system themes; no sign-in.
 
-Live runs spend API credits, so they are limited: 45 s per video, 3 runs per visitor per hour,
-a daily budget for everyone (`DAILY_BUDGET_USD`, default $3), checked *before* each paid call.
-Without a key the site runs in demo mode. Visitors' videos are deleted after the measurement.
+Live runs spend API credits, so a hosted copy limits them: 45 s per video, 3 runs per visitor
+per hour (by the address the hosting proxy saw, which a visitor cannot fake), at most 4 jobs at
+a time, and a daily budget for everyone (`DAILY_BUDGET_USD`, default $3); all of these, and the
+upload size, are checked *before* a video is accepted, and the budget again before each paid
+call. Without a key the site runs in demo mode. Visitors' videos are deleted after the
+measurement. The key is read from `.env`, as for the command line.
 
 ```bash
 pip install -e ".[web]"
@@ -185,8 +220,11 @@ uvicorn galileo.web:app --port 7860                    # http://localhost:7860
 docker build -t isochron . && docker run -p 7860:7860 -e MODEL_API_KEY=... isochron
 ```
 
-`deploy/huggingface/` holds the two files of the Hugging Face Space, which builds this
-repository from GitHub.
+**The public site is a static copy** built by `scripts/build_static.py` (the same page, with the
+precomputed results as JSON files and the live part replaced by these instructions) and
+published to GitHub Pages by `.github/workflows/pages.yml` on every push: no server, no key,
+no credits spent by visitors. `deploy/huggingface/` holds a Docker Space for a hosted live copy
+(Hugging Face now requires a PRO account for Docker Spaces).
 
 ## Second system: a bouncing ball (coefficient of restitution)
 
@@ -387,7 +425,7 @@ verdict was computed or shown, so the length could not be chosen to fit the pred
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 cp .env.example .env                                    # put your MODEL_API_KEY in it
-pytest -q                                               # 72 tests, no network needed
+pytest -q                                               # 74 tests, no network needed
 ```
 
 ffmpeg comes with `imageio-ffmpeg`; no system install needed.
@@ -447,6 +485,7 @@ galileo/
 scripts/make_synthetic_pendulum.py   video with known g for end-to-end tests
 scripts/make_synthetic_bounce.py     bouncing-ball video with known e
 scripts/accuracy_map.py              81 synthetic videos, one condition changed at a time
+scripts/build_static.py              the static copy of the site for GitHub Pages
 scripts/ball_film.py                 a picture of the bounces made from the video's own pixels (film.png)
 scripts/check_models.py              which models this key can use, and whether they call tools
 tests/                               physics, SAM parsing, lab, agent loop and API client against fake servers
