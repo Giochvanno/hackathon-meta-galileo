@@ -118,8 +118,11 @@ def summarize(rows: list[dict], out: Path) -> None:
             else:
                 lines.append(f"| {factor} | {level:g} {unit}{base} | 0 | — | — | — | — | "
                              f"{len(bad)} failed |")
-    (out / "summary.md").write_text("\n".join(lines) + "\n")
-    print("\n".join(lines))
+    (out / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    try:
+        print("\n".join(lines))
+    except UnicodeEncodeError:  # a Windows console without UTF-8
+        print("\n".join(lines).encode("ascii", "replace").decode())
 
 
 def plot(rows: list[dict], out: Path) -> None:
@@ -196,7 +199,7 @@ def main() -> None:
     rows = []
     for factor, level, seed, scene, name, _ in runs:
         rows.append({"factor": factor, "level": level, "seed": seed, **results[name]})
-    with (out / "results.csv").open("w", newline="") as f:
+    with (out / "results.csv").open("w", newline="", encoding="utf-8") as f:
         keys = ["factor", "level", "seed", "name", "ok", "g", "sigma_g", "error_pct", "pull",
                 "reliable", "best_model", "amplitude_deg", "problems", "error"]
         w = csv.DictWriter(f, fieldnames=keys, extrasaction="ignore")

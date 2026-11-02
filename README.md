@@ -24,7 +24,7 @@ tracked by SAM 3.1, analysed by the code in this repository, judged by the Muse 
 | SAM 3.1 vs a model-free OpenCV tracker on the same video | periods agree to 0.05 % | |
 | Fully automatic run (Muse Spark finds the ball, SAM 3.1 tracks it) | T0 = 1.3982 s, **identical to a human click** | |
 | Cost | ≈ $0.20 per video (SAM), ≈ $0.02 to look (Spark), ≈ $0.035–0.05 per agent run | |
-| Tests | 60, run in CI on every push | |
+| Tests | 67, run in CI on every push | |
 
 Every number below can be checked: the notebook, the agent logs, the tracks and the fits of
 each run are in [`docs/evidence`](docs/evidence/README.md).
@@ -159,6 +159,27 @@ reporting a g. Snapping to the thickest moving region fixed it (thin strips such
 the string or fingers lose), with a limit of two object radii so that a hand still holding the
 ball is not taken for it.
 
+## Web app
+
+`galileo/web.py` + `galileo/static/index.html`: film with the phone's camera in the browser (or
+upload a video), and the same no-click pipeline runs (`galileo/pipeline.py`: Muse Spark looks,
+SAM 3.1 tracks, the physics is fitted, an overlay video is drawn). The page shows Spark's notes
+on the setup, the numbers with their uncertainties, and the plots. Real results from
+`docs/evidence` are shown as examples, with no API calls, including a prediction that failed.
+
+Live runs spend API credits, so they are limited: 45 s per video, 3 runs per visitor per hour,
+a daily budget for everyone (`DAILY_BUDGET_USD`, default $3), checked *before* each paid call.
+Without a key the site runs in demo mode. Visitors' videos are deleted after the measurement.
+
+```bash
+pip install -e ".[web]"
+uvicorn galileo.web:app --port 7860                    # http://localhost:7860
+docker build -t galileo . && docker run -p 7860:7860 -e MODEL_API_KEY=... galileo
+```
+
+`deploy/huggingface/` holds the two files of the Hugging Face Space, which builds this
+repository from GitHub.
+
 ## Second system: a bouncing ball (coefficient of restitution)
 
 The same pipeline measures a different experiment. Drop a ball on a hard floor and film it:
@@ -257,12 +278,24 @@ the normal pipeline on each. With the model-free OpenCV tracker
 * **Refuses rather than lies:** strong damping (amplitude gone in a few seconds) is flagged
   UNRELIABLE 3/3 with a huge error bar; a low-contrast bob (40 or 15 grey levels above the
   background) is lost by the model-free tracker, and the one track it produced was flagged.
-  This is where SAM 3.1 has to earn its place: the same map with SAM is the next run.
 * **Error bars are conservative:** the reported σ is about 5× the actual scatter in the easy
   cases (the period error is the larger of two independent estimates), and grows when the
   conditions get hard.
 
 ![Accuracy map](docs/accuracy_map_opencv.png)
+
+**The same 81 videos with SAM 3.1** ([full table](docs/accuracy_sam.md),
+[plot](docs/accuracy_map_sam.png), $7.42 of API credits): SAM is needed exactly where the
+model-free tracker breaks.
+
+| Condition | OpenCV (no model) | SAM 3.1 |
+|---|---|---|
+| Low contrast, bob 40 grey levels above the background | lost on 2 of 3, 1 flagged | **0.03 %**, 3/3 reliable |
+| Low contrast, 15 grey levels | lost on 3 of 3 | **0.025 %**, 3/3 reliable |
+| Strong damping (0.3 /s) | flagged UNRELIABLE 3/3 | **0.10 %** |
+| Normal conditions (baseline) | 0.005 % | 0.000–0.010 % |
+| Heavy sensor noise (σ = 25) | 0.04 % | 0.09 % (pull spread 1.7: SAM's error bar is slightly optimistic here) |
+| 40° swing | 0.15 % | 0.15 % (same physics limit for both) |
 
 **Things that went wrong, and the fix**
 * *SAM text prompt matched the wrong object.* "battery" segmented a soda can on the desk;
@@ -328,7 +361,7 @@ verdict was computed or shown, so the length could not be chosen to fit the pred
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 cp .env.example .env                                    # put your MODEL_API_KEY in it
-pytest -q                                               # 60 tests, no network needed
+pytest -q                                               # 67 tests, no network needed
 ```
 
 ffmpeg comes with `imageio-ffmpeg`; no system install needed.
@@ -377,6 +410,9 @@ galileo/
   lab.py         lab notebook: experiments, T0²-vs-L fit, frozen predictions, blind verification
   agent.py       Muse Spark tool loop, tools, run logs with token cost
   assistant.py   Muse Spark looks at the video: object, release frame, pivot/floor, setup issues
+  pipeline.py    one no-click measurement: look -> SAM -> physics -> plots (used by the web app)
+  web.py         FastAPI app: camera/upload, jobs with progress, limits, demo examples
+  static/        the single-page front end
   synth.py       synthetic pendulum videos with known g and controlled degradations
   report.py      report.png, overlay.png, bounce_report.png
   render.py      overlay video: SAM mask, trail and live numbers on every frame
@@ -398,3 +434,4 @@ the first commit is dated Oct 30, 2026, and the commit history shows every step 
 | Oct 30 | SAM 3.1 pipeline, physics fits, synthetic validation; first real run (battery, g = 9.92 ± 0.25) |
 | Oct 31 | Muse Spark agent with 7 tools and a lab notebook; golf-ball pendulum E2; **P1 confirmed blind**; overlay video; CI |
 | Nov 1 | E3 filmed; **the agent verified P2 blind by itself**; Muse Spark lab assistant (fully automatic run = human click); E4: P3 in tension (z = −2.2, traced to ±4–5 mm length errors); g from three lengths 9.782 ± 0.127; bouncing-ball module; first real drop e = 0.8638 ± 0.0004 with rolling-shutter correction; prediction B1 registered and **failed on 2 of 3 drops** (hand release 31–34 cm, measured from the video) |
+| Nov 2 | Accuracy map with SAM 3.1 (81 videos): SAM holds where the model-free tracker fails; web app with in-browser camera and live progress; Docker; Hugging Face Space |

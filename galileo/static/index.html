@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Galileo · phone physics lab</title>
+<meta name="description" content="Film a pendulum or a bouncing ball. Muse Spark finds the object, SAM 3.1 tracks it, physics gives the answer with honest error bars.">
+<style>
+  :root {
+    --bg: #f7f6f2; --card: #ffffff; --ink: #141413; --ink2: #5b5a55; --line: #e3e1da;
+    --accent: #2a62d6; --accent-ink: #ffffff; --warm: #e0662e; --ok: #1f8a5b; --bad: #c2412d;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121211; --card: #1c1c1a; --ink: #f1efe8; --ink2: #a8a59c; --line: #2e2d2a;
+            --accent: #6e9bff; --accent-ink: #0b0b0b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+  header h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 8px 0 8px; letter-spacing: -0.02em; }
+  header p { color: var(--ink2); margin: 0 0 4px; max-width: 680px; }
+  .chain { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 8px; font-size: 13px; }
+  .chain span { border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; background: var(--card); }
+  .chain b { color: var(--accent); font-weight: 600; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+            padding: 20px; margin-top: 20px; }
+  h2 { font-size: 20px; margin: 0 0 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+  label { display: block; font-size: 13px; color: var(--ink2); margin-bottom: 4px; }
+  input, select { font: inherit; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px;
+                  background: var(--bg); color: var(--ink); min-width: 0; }
+  input[type=number] { width: 130px; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 9px; padding: 11px 16px;
+           background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+  button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .hint { font-size: 13px; color: var(--ink2); }
+  .note { font-size: 14px; padding: 10px 12px; border-radius: 8px; background: var(--bg);
+          border: 1px solid var(--line); margin-top: 12px; }
+  .note.bad { border-color: var(--bad); color: var(--bad); }
+  video.preview { width: 100%; max-height: 420px; background: #000; border-radius: 10px; margin-top: 12px; }
+  .steps { list-style: none; padding: 0; margin: 14px 0 0; }
+  .steps li { padding: 6px 0 6px 28px; position: relative; color: var(--ink2); }
+  .steps li::before { content: ""; position: absolute; left: 6px; top: 13px; width: 10px; height: 10px;
+                      border-radius: 50%; border: 2px solid var(--line); }
+  .steps li.on { color: var(--ink); } .steps li.on::before { border-color: var(--accent); animation: pulse 1s infinite; }
+  .steps li.ok { color: var(--ink); } .steps li.ok::before { background: var(--ok); border-color: var(--ok); }
+  @keyframes pulse { 50% { transform: scale(1.35); } }
+  .big { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-top: 14px; }
+  .num { border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .num .k { font-size: 13px; color: var(--ink2); }
+  .num .v { font: 600 19px/1.3 var(--mono); margin-top: 2px; }
+  .num .s { font-size: 13px; color: var(--ink2); }
+  .imgs { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 14px; }
+  .imgs img, .imgs video { width: 100%; max-height: 560px; object-fit: contain; border-radius: 10px; border: 1px solid var(--line); background: #0b0b0b; cursor: zoom-in; }
+  .issues { margin: 10px 0 0; padding-left: 18px; color: var(--ink2); font-size: 14px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+  .ex { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+  .ex img { width: 100%; aspect-ratio: 4/3; object-fit: contain; background: #0b0b0b; cursor: zoom-in; }
+  .ex .b { padding: 12px 14px 14px; }
+  .ex h3 { margin: 0 0 4px; font-size: 16px; }
+  .ex p { margin: 0 0 8px; font-size: 14px; color: var(--ink2); }
+  .ex .m { font: 14px/1.5 var(--mono); }
+  .tabs { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .tabs button { padding: 4px 10px; font-size: 12px; font-weight: 500; }
+  footer { color: var(--ink2); font-size: 14px; margin-top: 28px; }
+  footer a, section a { color: var(--accent); }
+  .hidden { display: none !important; }
+  dialog { border: 0; padding: 0; background: transparent; max-width: 96vw; }
+  dialog img { max-width: 96vw; max-height: 92vh; border-radius: 10px; }
+  dialog::backdrop { background: rgba(0,0,0,.8); }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Galileo: your phone is the physics lab</h1>
+  <p>Film a pendulum or a bouncing ball. Muse Spark finds the object and the moment it is released,
+     SAM&nbsp;3.1 tracks it on every frame, and the physics gives the period, g or the coefficient of
+     restitution, with honest error bars. Nobody clicks anything.</p>
+  <div class="chain"><span><b>1</b> your video</span><span><b>2</b> Muse Spark looks</span>
+    <span><b>3</b> SAM 3.1 tracks</span><span><b>4</b> physics + uncertainties</span></div>
+</header>
+
+<section id="measure">
+  <h2>Measure your own experiment</h2>
+  <div id="mode-note" class="note hidden" style="margin:0 0 14px"></div>
+  <div class="row">
+    <div><label for="exp">Experiment</label>
+      <select id="exp"><option value="auto">Let Muse Spark decide</option>
+        <option value="pendulum">Pendulum</option><option value="bouncing ball">Bouncing ball</option></select></div>
+    <div id="len-box"><label for="len">Pendulum length, cm <span class="hint">(pivot → centre of the bob)</span></label>
+      <input id="len" type="number" inputmode="decimal" step="0.1" min="3" placeholder="e.g. 48.9"></div>
+    <div id="drop-box"><label for="drop">Drop height, cm <span class="hint">(optional, ball)</span></label>
+      <input id="drop" type="number" inputmode="decimal" step="0.1" min="3" placeholder="e.g. 30"></div>
+  </div>
+  <div class="row" style="margin-top:14px">
+    <button id="rec" class="ghost">● Record with camera</button>
+    <button id="stop" class="ghost hidden">■ Stop</button>
+    <label class="ghost" style="margin:0"><input id="file" type="file" accept="video/*" style="max-width:240px"></label>
+    <button id="go" disabled>Measure</button>
+  </div>
+  <p class="hint">Tips: phone still (lean it on something), the whole swing or bounce in the frame, 10–40 s,
+     swing under 25°, let go without pushing. Up to 45 s. The video is deleted after the measurement.</p>
+  <video id="live" class="preview hidden" playsinline muted autoplay></video>
+  <video id="clip" class="preview hidden" playsinline controls></video>
+  <ul id="steps" class="steps hidden"></ul>
+  <div id="err" class="note bad hidden"></div>
+  <div id="result" class="hidden">
+    <div id="spark" class="note"></div>
+    <div id="nums" class="big"></div>
+    <div id="imgs" class="imgs"></div>
+  </div>
+</section>
+
+<section>
+  <h2>Real results, no waiting</h2>
+  <p class="hint" style="margin-top:-6px">These are real phone videos measured by this code (no API calls on this page).
+     The full record, including the predictions that failed, is in the
+     <a href="https://github.com/Giochvanno/hackathon-meta-galileo" target="_blank" rel="noopener">repository</a>.</p>
+  <div id="cards" class="cards"></div>
+</section>
+
+<footer>
+  Built for the Meta Global AI Developer Hackathon 2026 with SAM 3.1 and Muse Spark (Meta Model API).
+  Every number comes from code with tests; the AI never does the arithmetic.
+  <a href="https://github.com/Giochvanno/hackathon-meta-galileo" target="_blank" rel="noopener">Source and lab notebook</a>.
+</footer>
+</main>
+<dialog id="zoom"><img alt=""></dialog>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let blob = null, recorder = null, stream = null, timer = null;
+const STEP_ORDER = ["prepare", "look", "track", "physics", "render", "done"];
+const STEP_TEXT = {prepare: "Reading the video: exact frame times", look: "Muse Spark is looking at the video",
+  track: "SAM 3.1 is tracking the object frame by frame", physics: "Fitting the physics with uncertainties",
+  render: "Drawing the overlay video", done: "Done"};
+
+const fmt = (v, s, d = 4) => `${v.toFixed(d)} ± ${s.toFixed(d)}`;
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+
+function ready() { $("go").disabled = !blob; }
+function showErr(msg) { $("err").textContent = msg; $("err").classList.remove("hidden"); }
+function clearOut() { ["err", "result"].forEach((i) => $(i).classList.add("hidden")); }
+
+$("exp").onchange = () => {
+  const v = $("exp").value;
+  $("len-box").classList.toggle("hidden", v === "bouncing ball");
+  $("drop-box").classList.toggle("hidden", v === "pendulum");
+};
+
+$("file").onchange = () => {
+  const f = $("file").files[0];
+  if (!f) return;
+  blob = f; clearOut();
+  $("clip").src = URL.createObjectURL(f); $("clip").classList.remove("hidden");
+  ready();
+};
+
+$("rec").onclick = async () => {
+  clearOut();
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({audio: false,
+      video: {facingMode: {ideal: "environment"}, width: {ideal: 1280}, height: {ideal: 720}, frameRate: {ideal: 30}}});
+  } catch (e) { showErr("Camera not available: " + e.message + ". You can upload a video instead."); return; }
+  $("live").srcObject = stream; $("live").classList.remove("hidden"); $("clip").classList.add("hidden");
+  const types = ["video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+  const mime = types.find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || "";
+  const chunks = [];
+  recorder = new MediaRecorder(stream, mime ? {mimeType: mime, videoBitsPerSecond: 8e6} : undefined);
+  recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  recorder.onstop = () => {
+    stream.getTracks().forEach((t) => t.stop());
+    const type = recorder.mimeType || "video/webm";
+    blob = new File([new Blob(chunks, {type})], type.includes("mp4") ? "camera.mp4" : "camera.webm", {type});
+    $("live").classList.add("hidden");
+    $("clip").src = URL.createObjectURL(blob); $("clip").classList.remove("hidden");
+    $("rec").textContent = "● Record again"; $("rec").classList.remove("hidden"); $("stop").classList.add("hidden");
+    clearInterval(timer); ready();
+  };
+  recorder.start(1000);
+  let s = 0;
+  $("rec").classList.add("hidden"); $("stop").classList.remove("hidden"); $("stop").textContent = "■ Stop (0 s)";
+  timer = setInterval(() => { s += 1; $("stop").textContent = `■ Stop (${s} s)`; if (s >= 40) recorder.stop(); }, 1000);
+};
+$("stop").onclick = () => recorder && recorder.state !== "inactive" && recorder.stop();
+
+$("go").onclick = async () => {
+  clearOut();
+  const fd = new FormData();
+  fd.append("video", blob, blob.name || "video.mp4");
+  fd.append("experiment", $("exp").value);
+  fd.append("length_cm", $("len").value);
+  fd.append("drop_cm", $("drop").value);
+  $("go").disabled = true;
+  renderSteps("upload");
+  try {
+    const r = await fetch("/api/measure", {method: "POST", body: fd});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || r.statusText);
+    poll(d.job);
+  } catch (e) { showErr(e.message); $("steps").classList.add("hidden"); ready(); }
+};
+
+function renderSteps(current, detail = "", frames = 0) {
+  const ul = $("steps"); ul.classList.remove("hidden"); ul.innerHTML = "";
+  const idx = STEP_ORDER.indexOf(current);
+  const up = document.createElement("li");
+  up.textContent = "Uploading"; up.className = current === "upload" ? "on" : "ok"; ul.appendChild(up);
+  STEP_ORDER.slice(0, -1).forEach((s, i) => {
+    const li = document.createElement("li");
+    li.className = idx > i || current === "done" ? "ok" : idx === i ? "on" : "";
+    let t = STEP_TEXT[s];
+    if (s === current && detail) t += ` · ${detail}`;
+    if (s === "track" && current === "track" && frames) t += ` · ${frames} frames back`;
+    li.textContent = t; ul.appendChild(li);
+  });
+}
+
+async function poll(id) {
+  const r = await fetch(`/api/jobs/${id}`); const j = await r.json();
+  if (j.status === "error") { $("steps").classList.add("hidden"); showErr(j.error); ready(); return; }
+  if (j.status === "done") { renderSteps("done"); showResult(j); ready(); return; }
+  renderSteps(j.step === "queued" ? "prepare" : j.step, j.detail, j.frames_received);
+  setTimeout(() => poll(id), 1500);
+}
+
+function showResult(j) {
+  const s = j.summary, r = s.result, lk = s.look;
+  const issues = (lk.issues || []).map((i) => `<li>${esc(i.kind.replaceAll("_", " "))}: ${esc(i.detail)}</li>`).join("");
+  $("spark").innerHTML = `<b>Muse Spark:</b> ${esc(s.experiment)}, tracking “${esc(lk.object_name)}” from
+    frame ${lk.frame_index} (${esc(lk.confidence)} confidence). ${esc(lk.summary || "")}
+    ${issues ? `<ul class="issues">${issues}</ul>` : ""}`;
+  const nums = [];
+  const box = (k, v, sub = "") => nums.push(`<div class="num"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`);
+  if (!r.reliable) box("Status", "UNRELIABLE", esc((r.problems || []).join("; ")));
+  if (s.experiment === "pendulum") {
+    box("Period at this swing", fmt(r.T_measured, r.sigma_T_measured) + " s", `${r.cycles.toFixed(1)} swings measured`);
+    box("Small-angle period T₀", fmt(r.T0, r.sigma_T0) + " s", r.amplitude_deg ? `swing ${r.amplitude_deg.toFixed(1)}° (${esc(r.amplitude_source)})` : "");
+    box("g", fmt(r.g, r.sigma_g, 3) + " m/s²", `reference ${r.g_reference.toFixed(3)} · ${r.g_error_pct >= 0 ? "+" : ""}${r.g_error_pct.toFixed(2)} %`);
+    box("Damping law (AIC)", esc(r.best_model), r.models.slice(1, 3).map((m) => `${esc(m.name)} +${m.delta_aic.toFixed(1)}`).join(" · "));
+  } else {
+    box("Coefficient of restitution e", fmt(r.e, r.sigma_e), `${r.impacts_s.length} impacts, ${esc(r.best_model)} model`);
+    if (r.first_flight_s) box("First flight", fmt(r.first_flight_s, r.sigma_first_flight_s) + " s", "after the drop");
+    if (r.drop_height_from_timing_m) box("The ball fell", `${(100 * r.drop_height_from_timing_m).toFixed(1)} cm`,
+      r.drop_height_from_pixels_m ? `from timing; ${(100 * r.drop_height_from_pixels_m).toFixed(1)} cm from pixels` : "from the flight time and e");
+    if (r.rolling_shutter_readout_ms) box("Camera rolling shutter", `${r.rolling_shutter_readout_ms.toFixed(0)} ms`, "measured from the flights and corrected");
+  }
+  $("nums").innerHTML = nums.join("");
+  const order = ["overlay.mp4", "look.png", "report.png", "bounce_report.png"];
+  $("imgs").innerHTML = order.filter((f) => j.files[f]).map((f) => f.endsWith(".mp4")
+    ? `<video src="${j.files[f]}" controls playsinline muted loop autoplay></video>`
+    : `<img src="${j.files[f]}" alt="${f}" loading="lazy">`).join("");
+  $("result").classList.remove("hidden");
+  bindZoom($("imgs"));
+}
+
+function bindZoom(root) {
+  root.querySelectorAll("img").forEach((im) => im.onclick = () => {
+    $("zoom").querySelector("img").src = im.src; $("zoom").showModal();
+  });
+}
+$("zoom").onclick = () => $("zoom").close();
+
+async function loadExamples() {
+  const d = await (await fetch("/api/examples")).json();
+  $("cards").innerHTML = d.examples.map((e) => {
+    const n = e.numbers;
+    const m = e.kind === "pendulum"
+      ? `T₀ = ${fmt(n.T0[0], n.T0[1])} s<br>g = ${fmt(n.g[0], n.g[1], 3)} m/s²<br>L = ${n.length_m.toFixed(3)} m · ${n.cycles.toFixed(0)} swings`
+      : n.text ? n.text
+      : `e = ${fmt(n.e[0], n.e[1])}<br>${n.impacts} impacts${n.readout_ms ? ` · rolling shutter ${n.readout_ms.toFixed(0)} ms` : ""}`;
+    const tabs = e.images.length > 1 ? `<div class="tabs">${e.images.map((src, i) =>
+      `<button class="ghost" data-src="${src}">${src.split("/").pop().replace(".png", "")}</button>`).join("")}</div>` : "";
+    return `<div class="ex"><img src="${e.images[0]}" alt="${esc(e.title)}" loading="lazy">
+      <div class="b"><h3>${esc(e.title)}</h3><p>${esc(e.story)}</p><div class="m">${m}</div>${tabs}</div></div>`;
+  }).join("");
+  $("cards").querySelectorAll(".ex").forEach((card) => {
+    card.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => { card.querySelector("img").src = b.dataset.src; });
+  });
+  bindZoom($("cards"));
+}
+
+async function loadStatus() {
+  const s = await (await fetch("/api/status")).json();
+  if (!s.live) {
+    $("mode-note").textContent = `Demo mode: ${s.reason}. The examples below are real measurements; to measure your own video, run Galileo locally (see the repository).`;
+    $("mode-note").classList.remove("hidden");
+    ["rec", "file", "go"].forEach((i) => $(i).disabled = true);
+  } else {
+    $("mode-note").textContent = `Live: each run costs about $0.10–0.25 of Meta Model API credits. Limits: ${s.runs_per_ip_hour} runs per hour per visitor, $${s.budget_usd.toFixed(2)} per day for everyone (used today: $${s.spent_today_usd.toFixed(2)}).`;
+    $("mode-note").classList.remove("hidden");
+  }
+}
+
+loadStatus(); loadExamples();
+</script>
+</body>
+</html>

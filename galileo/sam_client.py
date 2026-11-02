@@ -17,6 +17,7 @@ from __future__ import annotations
 import base64
 import os
 import sys
+import threading
 from pathlib import Path
 
 DEFAULT_BASE_URL = "https://api.meta.ai/v1"
@@ -53,6 +54,14 @@ def upload_video(client, path: str | Path) -> str:
         return client.files.create(purpose="user_data", file=f).id
 
 
+_local = threading.local()
+
+
+def set_progress_hook(hook) -> None:
+    """Call `hook(frames_received)` during SAM streaming in this thread (the web app uses it)."""
+    _local.hook = hook
+
+
 def _run(client, content: list[dict], metadata: dict[str, str], progress: bool) -> str:
     """Stream one SAM request and return the full output text."""
     deltas: list[str] = []
@@ -67,6 +76,9 @@ def _run(client, content: list[dict], metadata: dict[str, str], progress: bool) 
                 deltas.append(event.delta)
                 if progress and len(deltas) % 50 == 0:
                     print(f"  SAM: {len(deltas)} frames received", file=sys.stderr, flush=True)
+                hook = getattr(_local, "hook", None)
+                if hook is not None and len(deltas) % 10 == 0:
+                    hook(len(deltas))
             elif event.type in ("response.failed", "error"):
                 raise RuntimeError(f"SAM request failed: {event}")
         try:

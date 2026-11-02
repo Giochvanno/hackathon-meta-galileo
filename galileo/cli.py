@@ -210,16 +210,22 @@ def cmd_pendulum(a) -> None:
 # ------------------------------------------------------------------ bounce ---
 def cmd_bounce(a) -> None:
     """Bouncing ball: coefficient of restitution from impact times (VIDEO or a track.csv)."""
-    from .bounce import analyze_bounce, fit_restitution, predict_first_flight
-    from .report import bounce_report
-
     if a.video.lower().endswith(".csv"):
         track = Track.from_csv(a.video)
         out = Path(a.out or Path(a.video).parent)
         info: dict = {}
     else:
         track, out, _, info = _track_video(a)
-    g = local_g(a.lat, a.height)
+    res, preds, g = bounce_from_track(a, track, out, info)
+    _print_bounce(res, preds, g, out)
+
+
+def bounce_from_track(a, track: Track, out: Path, info: dict):
+    """Fit a bouncing-ball track and write result_bounce.json and bounce_report.png."""
+    from .bounce import analyze_bounce, fit_restitution, predict_first_flight
+    from .report import bounce_report
+
+    g = local_g(a.lat, a.height) if a.lat is not None else 9.80665
     # Motion blur makes the mask of a fast ball 2-3x larger near impacts: a loose area filter.
     work = track.clean(area_tol=3.0).window(a.t_start, a.t_end)
     height = info.get("height") or a.frame_height
@@ -236,7 +242,10 @@ def cmd_bounce(a) -> None:
                "video": info, "tracker": track.source, "track_meta": track.meta, "g_used": g}
     (out / "result_bounce.json").write_text(json.dumps(payload, indent=2, default=float))
     bounce_report(work, res, out / "bounce_report.png")
+    return res, preds, g
 
+
+def _print_bounce(res, preds: list, g: float, out: Path) -> None:
     print()
     if not res.reliable:
         print("  !!! UNRELIABLE MEASUREMENT: " + "; ".join(res.problems))
