@@ -222,7 +222,8 @@ measurement. The key is read from `.env`, as for the command line.
 ```bash
 pip install -e ".[web]"
 uvicorn galileo.web:app --port 7860                    # http://localhost:7860
-docker build -t isochron . && docker run -p 7860:7860 -e MODEL_API_KEY=... isochron
+docker run -p 7860:7860 -e MODEL_API_KEY=... ghcr.io/giochvanno/isochron-ai   # ready-made image (GitHub Packages)
+docker build -t isochron . && docker run -p 7860:7860 -e MODEL_API_KEY=... isochron   # or build it yourself
 ```
 
 **The public site is a static copy** built by `scripts/build_static.py` (the same page, with the

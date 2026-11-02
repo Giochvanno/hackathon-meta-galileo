@@ -1,6 +1,7 @@
 # Isochron AI web app: film or upload an experiment, get the measurement back.
-#   docker build -t galileo .
-#   docker run -p 7860:7860 -e MODEL_API_KEY=... galileo        # without the key: demo mode
+#   docker run -p 7860:7860 -e MODEL_API_KEY=... ghcr.io/giochvanno/isochron-ai   # published image
+#   docker build -t isochron . && docker run -p 7860:7860 -e MODEL_API_KEY=... isochron
+# Without the key it runs in demo mode. Published by .github/workflows/docker.yml on each release.
 FROM python:3.12-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
