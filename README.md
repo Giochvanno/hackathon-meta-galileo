@@ -2,12 +2,16 @@
 
 [![CI](https://github.com/Giochvanno/hackathon-meta-galileo/actions/workflows/ci.yml/badge.svg)](https://github.com/Giochvanno/hackathon-meta-galileo/actions/workflows/ci.yml)
 
+<img src="docs/sam_tracking.gif" align="right" width="230" alt="SAM 3.1 tracking a pendulum on a phone video, with the period measured live">
+
 **Site: [giochvanno.github.io/hackathon-meta-galileo](https://giochvanno.github.io/hackathon-meta-galileo/)**:
 a replay of a real fully automatic run, SAM 3.1's tracking video, every blind prediction and
 the measured runs. It is the static copy of the app (no API calls); the live app, with the
 camera, runs locally with your key (see below).
 
-Film a simple experiment with a phone. Isochron AI measures the motion frame by frame with
+**A measuring instrument made of multimodal models and physics:** a phone video goes in, a
+measurement with an honest error bar comes out. Film a simple experiment with a phone.
+Isochron AI measures the motion frame by frame with
 **SAM 3.1** (Meta Model API), fits competing physical models with honest uncertainties,
 and lets a **Muse Spark** agent run the scientific loop: choose the model the data supports,
 estimate g, register a falsifiable prediction for the next experiment, and verify it
@@ -61,10 +65,11 @@ tracked by SAM 3.1, analysed by the code in this repository, judged by the Muse 
 | SAM 3.1 vs a model-free OpenCV tracker on the same video | periods agree to 0.05 % | |
 | Fully automatic run (Muse Spark finds the ball, SAM 3.1 tracks it) | T0 = 1.3982 s, **identical to a human click** | |
 | Cost | ≈ $0.20 per video (SAM), ≈ $0.02 to look (Spark), ≈ $0.035–0.05 per agent run | |
-| Tests | 74, run in CI on every push | |
+| Tests | 75, run in CI on every push | |
 
 Every number below can be checked: the notebook, the agent logs, the tracks and the fits of
-each run are in [`docs/evidence`](docs/evidence/README.md).
+each run are in [`docs/evidence`](docs/evidence/README.md). `python eval/reproduce.py` re-measures every real result from the saved
+tracks (no key needed); [`eval/`](eval/README.md) sums up how the numbers were checked.
 
 ### The experiments
 
@@ -425,7 +430,7 @@ verdict was computed or shown, so the length could not be chosen to fit the pred
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 cp .env.example .env                                    # put your MODEL_API_KEY in it
-pytest -q                                               # 74 tests, no network needed
+pytest -q                                               # 75 tests, no network needed
 ```
 
 ffmpeg comes with `imageio-ffmpeg`; no system install needed.
@@ -485,6 +490,7 @@ galileo/
 scripts/make_synthetic_pendulum.py   video with known g for end-to-end tests
 scripts/make_synthetic_bounce.py     bouncing-ball video with known e
 scripts/accuracy_map.py              81 synthetic videos, one condition changed at a time
+eval/                                how the numbers were checked; reproduce.py re-measures every real result
 scripts/build_static.py              the static copy of the site for GitHub Pages
 scripts/ball_film.py                 a picture of the bounces made from the video's own pixels (film.png)
 scripts/check_models.py              which models this key can use, and whether they call tools
