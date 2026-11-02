@@ -447,6 +447,7 @@ galileo/
 scripts/make_synthetic_pendulum.py   video with known g for end-to-end tests
 scripts/make_synthetic_bounce.py     bouncing-ball video with known e
 scripts/accuracy_map.py              81 synthetic videos, one condition changed at a time
+scripts/ball_film.py                 a picture of the bounces made from the video's own pixels (film.png)
 scripts/check_models.py              which models this key can use, and whether they call tools
 tests/                               physics, SAM parsing, lab, agent loop and API client against fake servers
 ```

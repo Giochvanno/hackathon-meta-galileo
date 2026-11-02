@@ -348,6 +348,33 @@ def _scorecard() -> list[dict]:
     return rows
 
 
+REPO = "https://github.com/Giochvanno/hackathon-meta-galileo"
+PENDULUM_VIEWS = [
+    ("look.png", "what Spark saw",
+     "The frame Muse Spark chose (the ball already let go and swinging freely) and the point it "
+     "put on the ball for SAM 3.1. Its notes on the setup are at the top."),
+    ("overlay.png", "the swing",
+     "One frame of the video. Orange: every position of the centre of SAM 3.1's mask of the ball. "
+     "Blue: the circle fitted to that path; its centre, the cross, is the pivot, and the swing angle "
+     "comes from it."),
+    ("report.png", "the fit",
+     "Top: the ball's position along the swing on every frame (dots) and the damped-oscillation "
+     "model the data chose (line). Middle: what the model leaves over, a few pixels. Bottom: each "
+     "pass through the rest position, compared with a perfectly regular clock."),
+    ("overlay_web.mp4", "video: SAM 3.1 tracking",
+     "The whole 33 s video as SAM 3.1 saw it: the blue mask is the ball on every frame, the orange "
+     "trail its last moments, the line runs to the fitted pivot, and the period at the top is "
+     "updated live from the passes counted so far."),
+]
+BALL_FILM = ("Made from the video's own pixels, nothing drawn: every thin column is one frame, cut "
+             "around the ball SAM 3.1 tracked and laid left to right, so the ball's real images trace "
+             "each flight. Orange marks: the impacts the fit found.")
+BALL_FIT = ("Top: the tracked height. Blue arcs are the free-flight parabolas fitted to each flight; "
+            "orange lines are the impacts, where neighbouring parabolas meet. Bottom: every flight is "
+            "shorter than the one before by the same factor (a straight line on this log scale); that "
+            "factor is the bounciness e.")
+
+
 def _examples() -> list[dict]:
     """Precomputed real runs from docs/evidence (no API calls)."""
     out = []
@@ -363,13 +390,23 @@ def _examples() -> list[dict]:
         if not d:
             return
         r = d["result"]
-        imgs = [f"/evidence/{folder}/{n}" for n in ("look.png", "overlay.png", "report.png")
-                if (EVIDENCE / folder / n).exists()]
+        imgs = [{"src": f"/evidence/{folder}/{n}", "label": label, "caption": cap}
+                for n, label, cap in PENDULUM_VIEWS if (EVIDENCE / folder / n).exists()]
+        for im in imgs:
+            if im["src"].endswith(".mp4"):
+                im["poster"] = im["src"].replace("overlay_web.mp4", "overlay_poster.jpg")
         out.append({"id": folder, "kind": "pendulum", "title": title, "story": story,
+                    "source": f"{REPO}/tree/main/docs/evidence/{folder}",
                     "numbers": {"T0": [r["T0"], r["sigma_T0"]], "g": [r["g"], r["sigma_g"]],
                                 "length_m": r["length_m"], "cycles": r["cycles"],
                                 "best_model": r["best_model"]},
                     "images": imgs})
+
+    def ball_views(folder: str, hand: bool = False) -> list[dict]:
+        film = BALL_FILM + (" On the left, the hand holding the ball before it is let go." if hand else "")
+        views = [("bounce_report.png", "the fit", BALL_FIT), ("film.png", "the video, frame by frame", film)]
+        return [{"src": f"/evidence/{folder}/{n}", "label": label, "caption": cap}
+                for n, label, cap in views if (EVIDENCE / folder / n).exists()]
 
     pend("p3_auto", "Pendulum, fully automatic",
          "Muse Spark chose the frame and the ball, SAM 3.1 tracked it: the same period as with "
@@ -386,7 +423,8 @@ def _examples() -> list[dict]:
                              "the phone's rolling shutter (24 ms) was measured and removed.",
                     "numbers": {"e": [r["e"], r["sigma_e"]], "impacts": len(r["impacts_s"]),
                                 "readout_ms": r.get("rolling_shutter_readout_ms")},
-                    "images": ["/evidence/VID_20261101_142028/bounce_report.png"]})
+                    "source": f"{REPO}/tree/main/docs/evidence/VID_20261101_142028",
+                    "images": ball_views("VID_20261101_142028")})
     d = load("VID_20261101_152343/drop3/result_bounce.json")
     if d:
         r = d["result"]
@@ -399,7 +437,8 @@ def _examples() -> list[dict]:
                                         f"{r['sigma_first_flight_s']:.4f} s<br>fell "
                                         f"{100 * r['drop_height_from_timing_m']:.1f} cm (timing), "
                                         f"{100 * r['drop_height_from_pixels_m']:.1f} cm (pixels)"},
-                    "images": ["/evidence/VID_20261101_152343/drop3/bounce_report.png"]})
+                    "source": f"{REPO}/tree/main/docs/evidence/VID_20261101_152343/drop3",
+                    "images": ball_views("VID_20261101_152343/drop3", hand=True)})
     return out
 
 

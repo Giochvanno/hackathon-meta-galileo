@@ -38,7 +38,13 @@ def test_examples_are_real_results(app_factory):
     assert {"pendulum", "bouncing ball"} <= kinds
     auto = next(e for e in ex if e["id"] == "p3_auto")
     assert abs(auto["numbers"]["T0"][0] - 1.3982) < 1e-3
-    assert client.get(auto["images"][0]).status_code == 200
+    for e in ex:  # every picture exists and says what it shows
+        assert e["source"].startswith("https://github.com/") and e["images"]
+        for im in e["images"]:
+            assert client.get(im["src"]).status_code == 200 and len(im["caption"]) > 40
+    assert auto["images"][-1]["src"].endswith(".mp4") and client.get(auto["images"][-1]["poster"]).status_code == 200
+    ball = next(e for e in ex if e["id"] == "ball")
+    assert [im["label"] for im in ball["images"]] == ["the fit", "the video, frame by frame"]
     assert client.get("/evidence/../pyproject.toml").status_code == 404
 
 
