@@ -556,6 +556,7 @@ the first commit is dated Oct 30, 2026, and the commit history shows every step 
 | Oct 31 | Muse Spark agent with 7 tools and a lab notebook; golf-ball pendulum E2; **P1 confirmed blind**; overlay video; CI |
 | Nov 1 | E3 filmed; **the agent verified P2 blind by itself**; Muse Spark lab assistant (fully automatic run = human click); E4: P3 in tension (z = −2.2, traced to ±4–5 mm length errors); g from three lengths 9.782 ± 0.127; bouncing-ball module; first real drop e = 0.8638 ± 0.0004 with rolling-shutter correction; prediction B1 registered and **failed on 2 of 3 drops** (hand release 31–34 cm, measured from the video) |
 | Nov 2 | Accuracy map with SAM 3.1 (81 videos): SAM holds where the model-free tracker fails; web app with in-browser camera and live progress; renamed **Isochron AI**, new site (replay of a real run, themes), published as a static copy on GitHub Pages; Docker image on GitHub Packages; third system: any oscillator; security review of the web app; `eval/reproduce.py` re-measures every real result from the saved tracks (it caught one stale result file, now fixed) |
+| Nov 3 | E5 filmed at 0.697 m and measured through the web app with no clicks; **the agent verified P4 blind: tension (z = −2.17)**, the same direction and size as P3, which points at the tape-measured length rather than noise; the agent registered P5. Community files (contributing guide with the honesty rules, code of conduct, security policy, issue and PR templates); judge overview and architecture diagram in the README |
 
 ## Licence
 
