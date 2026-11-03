@@ -21,8 +21,18 @@ It measures a pendulum (period, g, the damping law), a bouncing ball (coefficien
 restitution, drop height) and **anything that oscillates** (a spring, a ruler on a table edge,
 a swing: period, frequency, damping, quality factor), and says how sure it is.
 
-> Built for the Meta Global AI Developer Hackathon (Indie track), Oct 30 – Nov 4, 2026.
+> Built for the Meta Global AI Developer Hackathon, Oct 30 – Nov 4, 2026: **Indie Developer Track,
+> problem statement "Push the Frontier"**.
 > The Python package is still called `galileo` (the project's first name). MIT licence.
+
+## At a glance for judges
+
+| Judging pillar | What to look at |
+|---|---|
+| **Impact** | A phone becomes a measuring instrument with honest error bars: the period of a pendulum to 0.02 % from one 30 s video, where a hand stopwatch is limited by human reaction time. Blind tests found where a human with a tape measure goes wrong ([the predictions](#the-predictions-pre-registered-by-the-agent-tested-blind)). |
+| **Meta AI tooling** | Three uses of the Meta Model API in one pipeline: **Muse Spark** sees the video and sets the experiment up (no clicks), **SAM 3.1** tracks the object on every frame, a **Muse Spark agent** runs the scientific loop: model choice, g, pre-registered predictions, blind verdicts ([how](#how-the-measurement-works)). |
+| **Technical depth** | Competing physical models compared by AIC, propagated uncertainties, rolling-shutter and camera-shake correction, three physical systems; an 81-video benchmark with a known answer; every published result re-measured by `eval/reproduce.py` in CI ([evaluation](eval/README.md)). |
+| **Demo completeness** | [Live site](https://giochvanno.github.io/hackathon-meta-galileo/) (replay of a real run, SAM 3.1 videos, every prediction), the full app locally or as a Docker image, results reproducible without a key ([below](#try-it-in-2-minutes)). |
 
 ## Try it in 2 minutes
 
