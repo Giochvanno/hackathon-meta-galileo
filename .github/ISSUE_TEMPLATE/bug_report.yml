@@ -1,0 +1,29 @@
+name: Bug report
+description: Something crashes or behaves differently from the README.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command or steps
+      description: The exact command (e.g. `python -m galileo.cli pendulum video.mp4 --auto --length 0.5`) or the steps on the site.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output or traceback
+      description: Never paste your API key.
+      render: text
+  - type: input
+    id: env
+    attributes:
+      label: System
+      placeholder: Windows 11, Python 3.12, commit abc1234

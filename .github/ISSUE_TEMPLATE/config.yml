@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security issue or leaked key
+    url: https://github.com/Giochvanno/hackathon-meta-galileo/security/advisories/new
+    about: Please report privately, not in a public issue.

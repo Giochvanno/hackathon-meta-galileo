@@ -1,0 +1,35 @@
+name: Measurement looks wrong
+description: A result that disagrees with what you know, or an error bar that looks too small.
+labels: [measurement]
+body:
+  - type: dropdown
+    id: system
+    attributes:
+      label: Experiment
+      options: [Pendulum, Bouncing ball, Anything that oscillates]
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you measure, and what did you expect?
+      description: For example "g = 9.52 ± 0.03, expected about 9.80; length 48.9 cm measured to the centre of the ball".
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      render: shell
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Attach result.json and the report image. A link to the video helps a lot (camera still? pivot visible? contrast?).
+  - type: checkboxes
+    id: setup
+    attributes:
+      label: Setup
+      options:
+        - label: The phone was fixed (books or a tripod) and video stabilisation was off
+        - label: The whole motion stays in the frame
