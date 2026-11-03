@@ -1,4 +1,4 @@
-# Isochron AI — point a phone at an experiment, get the physics with error bars
+# Isochron AI — point a phone at an experiment, get a measurement with error bars
 
 [![CI](https://github.com/Giochvanno/hackathon-meta-galileo/actions/workflows/ci.yml/badge.svg)](https://github.com/Giochvanno/hackathon-meta-galileo/actions/workflows/ci.yml)
 
@@ -38,7 +38,7 @@ package.)
 
 | Judging pillar | What to look at |
 |---|---|
-| **Impact** | A phone becomes a measuring instrument with honest error bars: the period of a pendulum to 0.02 % from one 30 s video, where a hand stopwatch is limited by human reaction time. Blind tests found where a human with a tape measure goes wrong ([the predictions](#the-predictions-pre-registered-by-the-agent-tested-blind)). |
+| **Impact** | A phone becomes a measuring instrument with honest error bars: the period of a pendulum to 0.02 % (statistical) from one 30 s video, where a hand stopwatch is limited by human reaction time. Blind tests found where a human with a tape measure goes wrong ([the predictions](#the-predictions-pre-registered-by-the-agent-tested-blind)). |
 | **Meta AI tooling** | Three uses of the Meta Model API in one pipeline: **Muse Spark** sees the video and sets the experiment up (no clicks), **SAM 3.1** tracks the object on every frame, a **Muse Spark agent** runs the scientific loop: model choice, g, pre-registered predictions, blind verdicts ([how](#how-the-measurement-works)). |
 | **Technical depth** | Competing physical models compared by AIC, propagated uncertainties, rolling-shutter and camera-shake correction, three physical systems; an 81-video benchmark with a known answer; every published result re-measured by `eval/reproduce.py` in CI ([evaluation](eval/README.md)). |
 | **Demo completeness** | [Live site](https://giochvanno.github.io/hackathon-meta-galileo/) (replay of a real run, SAM 3.1 videos, every prediction), the full app locally or as a Docker image, results reproducible without a key ([below](#try-it-in-2-minutes)). |
@@ -78,9 +78,9 @@ tracked by SAM 3.1, analysed by the code in this repository, judged by the Muse 
 | | Value | Reference |
 |---|---|---|
 | **g from five lengths** | **10.00 ± 0.10 m/s²** as the agent fitted it (lengths at ± 3 mm; χ² = 10.6 for 3 dof: they do not agree); **9.83 ± 0.04** with the ± 5 mm the data require (analysis after the verdicts) | 9.7975 m/s² for Busan (+2.1 % / +0.4 %) |
-| **Blind predictions, pendulum** | **2 confirmed, 2 in tension** (z = 0.76, 0.73, −2.17, −2.17) | P3 and P4 are short the same way: the tape measure, not the clock. P5 is registered and waiting |
+| **Blind predictions, pendulum** | **2 confirmed, 2 in tension** (z = 0.76, 0.73, −2.17, −2.17) | P3 and P4 are short the same way: the tape measure, not the clock (fixing a phone frame-clock glitch found afterwards makes both misses larger). P5 is registered and waiting |
 | **Blind prediction, bouncing ball** | **B1 failed** on 2 of 3 drops | the instrument found why: hand releases from 31–34 cm, not 30 |
-| Period precision from one 34 s video | ± 0.0003 s (0.02 %) | |
+| Period precision from one 34 s video | ± 0.0003 s (0.02 %), statistical | a one-frame glitch in the phone's timestamps, found after the verdicts, shifts it by 0.002 s ([check](#two-checks-made-after-the-verdicts)) |
 | SAM 3.1 vs a model-free OpenCV tracker on the same video | periods agree to 0.05 % | |
 | Fully automatic run (Muse Spark finds the ball, SAM 3.1 tracks it) | T0 = 1.3982 s, **identical to a human click** | |
 | Cost | ≈ $0.20 per video (SAM), ≈ $0.02 to look (Spark), ≈ $0.035–0.05 per agent run | |
@@ -122,8 +122,8 @@ The agent found each test on its own: it noticed that the new experiment was add
 pending prediction and that its length was within the allowed 20 % of the plan, verified it,
 refitted g with the new length, and registered the next prediction (8 turns, $0.035–0.05).
 
-**P3 is in tension (z = −2.2), and the data say why.** The period of every run is known to
-0.02 %; the length is not. With the local g, the measured periods imply lengths of 623.6,
+**P3 is in tension (z = −2.2), and the data say why.** The statistical uncertainty of every
+period is about 0.02 %; the length is far less certain. With the local g, the measured periods imply lengths of 623.6,
 293.1 and 485.1 mm for E2–E4, against 619.0, 288.7 and 489.0 mm on the tape: differences of
 +4.6, +4.4 and −3.9 mm, while each length was entered as ± 3 mm. The four-length fit agrees
 (χ² = 5.5 for 2 degrees of freedom, larger than expected). Where exactly the thread leaves the
@@ -150,8 +150,39 @@ string attachment under the desk top was hidden.
 The five lengths are consistent with each other at about ± 5 mm, not the ± 3 mm we entered
 (χ² = 4.1 for 3 dof at ± 5 mm), which gives g = 9.83 ± 0.04 m/s² without an offset term or
 9.99 ± 0.16 with one. That last calculation was done after the verdicts and changes none of
-them. **The clock is good to 0.02 %; the tape measure is the instrument's weak link, and the
-instrument found it.** The agent registered P5 at 0.55 m to keep testing.
+them. **The timing scatter is a few milliseconds per swing; the tape measure is the
+instrument's weak link, and the instrument found it.** The agent registered P5 at 0.55 m to keep
+testing.
+
+### Two checks made after the verdicts
+
+Both were found on Nov 3–4 while checking the numbers for the demo video. Neither changes a
+recorded verdict; both are written down here because they change how sure we should be.
+
+**1. The phone's frame clock sometimes jumps by one frame.** The phone writes a time for every
+frame, and the pipeline uses those times. In E4 and E5 there is one place where the times jump by
+two frame intervals while the ball moves only one frame's worth, and every crossing after it
+comes ~28 ms "late". Removing that one false interval:
+
+| | where | T from the crossings | crossing scatter | corrected z | implied length − tape |
+|---|---|---|---|---|---|
+| E4 (tests P3) | 19.54 s | −0.0022 s | 8.6 → 2.4 ms | −2.17 → about −2.6 | −3.9 → about −5.4 mm |
+| E5 (tests P4) | 23.43 s | −0.0027 s | 8.2 → 1.8 ms | −2.17 → about −2.7 | −9.0 → about −11 mm |
+
+The scatter dropping by a factor of four is what shows the jump is false. E2 has no such jump;
+E3 has one where a frame really was dropped (correcting it makes the scatter worse, so it stays);
+E1 is unclear. The reported error bars of E4 and E5 (± 0.0003, ± 0.0004 s) did not include this,
+and the precision in the tables is the statistical one. Corrected, both P3 and P4 move further
+in the same direction: the conclusion about the tape measure gets stronger, not weaker. The
+pipeline does not yet detect this on its own (see [Known limits](#known-limits)).
+
+**2. The pivot cross in the E5 tracking video is an estimate.** The cross is the centre of the
+arc the ball moves on (a circle fit), not a point found on the string. With an 8° swing that
+centre is poorly pinned down sideways: it sits about 25 px (≈ 2 cm) to the side of where the
+string visibly disappears behind the desk's front panel. It is used only for the swing amplitude
+(8.3°), which enters T0 through a ~0.1 % correction; taking the visible string top instead makes
+T0 larger by about 0.0001 s, a quarter of its error bar. The demo video uses a copy of the
+tracking video rendered without the cross.
 
 ## How the measurement works
 
@@ -480,6 +511,10 @@ verdict was computed or shown, so the length could not be chosen to fit the pred
   changes; e uses only times and is not affected, but the pixel scale (and the rough g from
   `--drop-height`) is. The first drop height was set by eye (±2 cm).
 * The agent cannot see the video; it only sees tool results.
+* Phone frame timestamps can jump by one frame interval without a dropped frame. In E4 and E5
+  this biased the period by ~0.002 s, more than the reported error bar
+  ([details](#two-checks-made-after-the-verdicts)); the pipeline does not flag it yet. The
+  crossing residuals show it as a step of about one frame.
 
 ## Setup
 
@@ -566,6 +601,7 @@ the first commit is dated Oct 30, 2026, and the commit history shows every step 
 | Nov 1 | E3 filmed; **the agent verified P2 blind by itself**; Muse Spark lab assistant (fully automatic run = human click); E4: P3 in tension (z = −2.2, traced to ±4–5 mm length errors); g from three lengths 9.782 ± 0.127; bouncing-ball module; first real drop e = 0.8638 ± 0.0004 with rolling-shutter correction; prediction B1 registered and **failed on 2 of 3 drops** (hand release 31–34 cm, measured from the video) |
 | Nov 2 | Accuracy map with SAM 3.1 (81 videos): SAM holds where the model-free tracker fails; web app with in-browser camera and live progress; renamed **Isochron AI**, new site (replay of a real run, themes), published as a static copy on GitHub Pages; Docker image on GitHub Packages; third system: any oscillator; security review of the web app; `eval/reproduce.py` re-measures every real result from the saved tracks (it caught one stale result file, now fixed) |
 | Nov 3 | E5 filmed at 0.697 m and measured through the web app with no clicks; **the agent verified P4 blind: tension (z = −2.17)**, the same direction and size as P3, which points at the tape-measured length rather than noise; the agent registered P5. Community files (contributing guide with the honesty rules, code of conduct, security policy, issue and PR templates); judge overview and architecture diagram in the README |
+| Nov 4 | Three-minute demo video built from the real recordings. Two checks after the verdicts, written down: a one-frame jump in the phone's timestamps in E4 and E5 (correcting it moves P3 and P4 further the same way) and the pivot cross being an estimate. Site and README say "measurement" instead of "physics"; v1.0.0 |
 
 ## Licence
 

@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Isochron AI · a phone video becomes a physics measurement</title>
-<meta name="description" content="A measuring instrument in a phone video: Muse Spark finds the moving object, SAM 3.1 tracks it on every frame, tested code fits the physics with error bars, and an agent tests its own predictions blind.">
-<meta property="og:title" content="Isochron AI: point a phone at an experiment, get the physics with error bars">
+<meta name="description" content="A measuring instrument in a phone video: Muse Spark finds the moving object, SAM 3.1 tracks it on every frame, tested code turns the motion into a measurement with error bars, and an agent tests its own predictions blind.">
+<meta property="og:title" content="Isochron AI: point a phone at an experiment, get a measurement with error bars">
 <meta property="og:description" content="Muse Spark finds the object, SAM 3.1 tracks it on every frame, and tested code measures the period, g, bounciness or damping. Blind predictions included, the failed ones too.">
 <meta property="og:image" content="static/og.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -258,7 +258,7 @@ dialog::backdrop { background: rgba(5, 10, 15, .85); }
   <div class="hero">
     <div>
       <p class="built">Built on <b>Muse Spark</b> and <b>SAM 3.1</b> through the Meta Model API. Open source.</p>
-      <h1>Point a phone at an experiment. Get the physics, with error bars.</h1>
+      <h1>Point a phone at an experiment. Get a measurement, with error bars.</h1>
       <p class="lede">Measuring motion usually takes a stopwatch and a guess, or a high-speed camera.
         <b>Isochron AI is a measuring instrument in a phone video:</b> Muse Spark finds the moving object,
         SAM&nbsp;3.1 follows it on every frame, tested code fits the physics with an error bar, and an agent
@@ -328,7 +328,7 @@ dialog::backdrop { background: rgba(5, 10, 15, .85); }
         <li><b>Film it</b>Phone still, the whole motion in view.<div class="live"></div></li>
         <li><b>Muse Spark looks</b>Finds the object and the moment it is let go.<div class="live"></div></li>
         <li><b>SAM 3.1 tracks</b>A mask of the object on every frame.<div class="live"></div></li>
-        <li><b>Physics with error bars</b>The model the data supports, and how sure it is.<div class="live"></div></li>
+        <li><b>Measured, with error bars</b>The model the data supports, and how sure it is.<div class="live"></div></li>
       </ol>
       <div class="panel hidden" id="local">
         <h3 style="margin:0 0 6px;font-size:20px">Run it on your own video</h3>
@@ -377,7 +377,7 @@ uvicorn galileo.web:app --port 7860    # open http://localhost:7860</pre>
     <h2 class="t">Predictions made before the experiment.</h2>
     <p class="sub">A prediction counts only if it was written down before the video existed. The agent froze each one in its lab notebook. This is every one of them, including those that failed, and why.</p>
     <table class="data"><thead><tr><th scope="col">Prediction</th><th scope="col">Of</th><th scope="col">Predicted</th><th scope="col">Measured</th><th scope="col">Off by</th><th scope="col">Verdict</th><th scope="col">Tested by</th></tr></thead><tbody id="score"></tbody></table>
-    <p class="after">Every miss traces back to the ruler, not the physics. The ball was released from 31–34 cm instead of 30; the instrument measured the drop heights itself, from the timing and from the pixels, and the two agree within half a centimetre. In P3 and P4 the periods, known to 0.02 %, imply a pendulum 4 and 9 mm shorter than the tape said: the same direction twice, in the same setup under a desk, where Muse Spark had noted that the pivot was hidden. The tape is good to about ±5 mm, not the ±3 mm we assumed.</p>
+    <p class="after">Every miss traces back to the ruler. The ball was released from 31–34 cm instead of 30; the instrument measured the drop heights itself, from the timing and from the pixels, and the two agree within half a centimetre. In P3 and P4 the periods imply a pendulum 4 and 9 mm shorter than the tape said (about 5 and 11 mm once a one-frame glitch in the phone's timestamps, found afterwards, is removed): the same direction twice, in the same setup under a desk, where Muse Spark had noted that the pivot was hidden. The tape is good to about ±5 mm, not the ±3 mm we assumed.</p>
   </section>
 
   <section class="block" id="accuracy">
