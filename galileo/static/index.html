@@ -266,8 +266,8 @@ dialog::backdrop { background: rgba(5, 10, 15, .85); }
       <div class="stats">
         <div class="stat"><div class="what">Precision of a pendulum's period from one 34-second phone video</div>
           <div class="num">0.02 %</div><div class="vs" id="vs-stopwatch">A hand stopwatch is limited by human reaction time.</div></div>
-        <div class="stat"><div class="what">Blind predictions confirmed, made a day before the video</div>
-          <div class="num">2 of 3</div><div class="vs">The third came out 2.2 σ off; the cause was found in the data.</div></div>
+        <div class="stat"><div class="what">Blind predictions confirmed, each made before its video existed</div>
+          <div class="num">2 of 4</div><div class="vs">The other two came out 2.2 σ short, the same way: the tape measure, not the clock.</div></div>
         <div class="stat"><div class="what">Error in g on low-contrast test videos, tracked with SAM 3.1</div>
           <div class="num">0.03 %</div><div class="vs">A tracker without a model lost the object in 5 of 6.</div></div>
       </div>
@@ -306,7 +306,7 @@ dialog::backdrop { background: rgba(5, 10, 15, .85); }
         <svg viewBox="0 0 56 56" aria-hidden="true"><path d="M28 6 L28 38" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><path d="M12 42 A 18 18 0 0 0 44 42" fill="none" stroke="#f5b700" stroke-width="3" stroke-linecap="round"/><circle cx="28" cy="6" r="2.5" fill="currentColor"/><circle cx="28" cy="42" r="6" fill="currentColor"/></svg>
         <h3>Pendulum</h3><p>A weight on a string.</p>
         <ul><li>Period and small-angle period</li><li>g, from the period and the length</li><li>Which damping law the data supports</li></ul>
-        <div class="ex">Real result: g = 9.821 ± 0.126 m/s² from four lengths, 0.24 % from the local value.</div></div>
+        <div class="ex">Real result: T₀ = 1.6650 ± 0.0004 s from a 32-second video; g to about 1 %, limited by the tape measure.</div></div>
       <div class="sys">
         <svg viewBox="0 0 56 56" aria-hidden="true"><path d="M6 48 L50 48" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><path d="M8 46 Q 14 8 20 46 Q 25 20 30 46 Q 34 30 38 46 Q 41 38 44 46" fill="none" stroke="#f5b700" stroke-width="3" stroke-linecap="round"/><circle cx="44" cy="40" r="5" fill="currentColor"/></svg>
         <h3>Bouncing ball</h3><p>Drop a ball on a hard floor.</p>
@@ -377,7 +377,7 @@ uvicorn galileo.web:app --port 7860    # open http://localhost:7860</pre>
     <h2 class="t">Predictions made before the experiment.</h2>
     <p class="sub">A prediction counts only if it was written down before the video existed. The agent froze each one in its lab notebook. This is every one of them, including those that failed, and why.</p>
     <table class="data"><thead><tr><th scope="col">Prediction</th><th scope="col">Of</th><th scope="col">Predicted</th><th scope="col">Measured</th><th scope="col">Off by</th><th scope="col">Verdict</th><th scope="col">Tested by</th></tr></thead><tbody id="score"></tbody></table>
-    <p class="after">Both misses trace back to the ruler, not the physics: hand releases from 31–34 cm instead of 30, and lengths measured to ±4–5 mm instead of ±3. The instrument measured the drop heights itself, from the timing and from the pixels, and the two agree within half a centimetre.</p>
+    <p class="after">Every miss traces back to the ruler, not the physics. The ball was released from 31–34 cm instead of 30; the instrument measured the drop heights itself, from the timing and from the pixels, and the two agree within half a centimetre. In P3 and P4 the periods, known to 0.02 %, imply a pendulum 4 and 9 mm shorter than the tape said: the same direction twice, in the same setup under a desk, where Muse Spark had noted that the pivot was hidden. The tape is good to about ±5 mm, not the ±3 mm we assumed.</p>
   </section>
 
   <section class="block" id="accuracy">

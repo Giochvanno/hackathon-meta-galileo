@@ -21,8 +21,18 @@ It measures a pendulum (period, g, the damping law), a bouncing ball (coefficien
 restitution, drop height) and **anything that oscillates** (a spring, a ruler on a table edge,
 a swing: period, frequency, damping, quality factor), and says how sure it is.
 
-> Built for the Meta Global AI Developer Hackathon (Indie track), Oct 30 – Nov 4, 2026.
+> Built for the Meta Global AI Developer Hackathon, Oct 30 – Nov 4, 2026: **Indie Developer Track,
+> problem statement "Push the Frontier"**.
 > The Python package is still called `galileo` (the project's first name). MIT licence.
+
+## At a glance for judges
+
+| Judging pillar | What to look at |
+|---|---|
+| **Impact** | A phone becomes a measuring instrument with honest error bars: the period of a pendulum to 0.02 % from one 30 s video, where a hand stopwatch is limited by human reaction time. Blind tests found where a human with a tape measure goes wrong ([the predictions](#the-predictions-pre-registered-by-the-agent-tested-blind)). |
+| **Meta AI tooling** | Three uses of the Meta Model API in one pipeline: **Muse Spark** sees the video and sets the experiment up (no clicks), **SAM 3.1** tracks the object on every frame, a **Muse Spark agent** runs the scientific loop: model choice, g, pre-registered predictions, blind verdicts ([how](#how-the-measurement-works)). |
+| **Technical depth** | Competing physical models compared by AIC, propagated uncertainties, rolling-shutter and camera-shake correction, three physical systems; an 81-video benchmark with a known answer; every published result re-measured by `eval/reproduce.py` in CI ([evaluation](eval/README.md)). |
+| **Demo completeness** | [Live site](https://giochvanno.github.io/hackathon-meta-galileo/) (replay of a real run, SAM 3.1 videos, every prediction), the full app locally or as a Docker image, results reproducible without a key ([below](#try-it-in-2-minutes)). |
 
 ## Try it in 2 minutes
 
@@ -58,10 +68,10 @@ tracked by SAM 3.1, analysed by the code in this repository, judged by the Muse 
 
 | | Value | Reference |
 |---|---|---|
-| **g from four lengths** (T0² vs L, with a length-offset term) | **9.821 ± 0.126 m/s²** | 9.7975 m/s² for Busan (+0.24 %, 0.2 σ) |
-| **Blind predictions, pendulum** | **2 confirmed, 1 in tension** (z = 0.76, 0.73, −2.17) | P4 is registered and waiting |
+| **g from five lengths** | **10.00 ± 0.10 m/s²** as the agent fitted it (lengths at ± 3 mm; χ² = 10.6 for 3 dof: they do not agree); **9.83 ± 0.04** with the ± 5 mm the data require (analysis after the verdicts) | 9.7975 m/s² for Busan (+2.1 % / +0.4 %) |
+| **Blind predictions, pendulum** | **2 confirmed, 2 in tension** (z = 0.76, 0.73, −2.17, −2.17) | P3 and P4 are short the same way: the tape measure, not the clock. P5 is registered and waiting |
 | **Blind prediction, bouncing ball** | **B1 failed** on 2 of 3 drops | the instrument found why: hand releases from 31–34 cm, not 30 |
-| Period precision from one 34 s video | ± 0.0002 s (0.02 %) | |
+| Period precision from one 34 s video | ± 0.0003 s (0.02 %) | |
 | SAM 3.1 vs a model-free OpenCV tracker on the same video | periods agree to 0.05 % | |
 | Fully automatic run (Muse Spark finds the ball, SAM 3.1 tracks it) | T0 = 1.3982 s, **identical to a human click** | |
 | Cost | ≈ $0.20 per video (SAM), ≈ $0.02 to look (Spark), ≈ $0.035–0.05 per agent run | |
@@ -79,6 +89,7 @@ tracks (no key needed); [`eval/`](eval/README.md) sums up how the numbers were c
 | E2 | golf ball on sewing thread, tape-measured | 0.619 ± 0.003 m | 1.5852 ± 0.0008 s | 9.725 ± 0.048 |
 | E3 | golf ball on thread, released at ~19°, 31 full swings | 0.289 ± 0.003 m | 1.0868 ± 0.0002 s | 9.650 ± 0.100 |
 | E4 | golf ball on thread, ~7°, 23 full swings, white ball in front of a white panel | 0.489 ± 0.003 m | 1.3982 ± 0.0003 s | 9.875 ± 0.061 |
+| E5 | the same ball, 0.70 m planned, ~8°, 16 full swings; fully automatic through the web app | 0.697 ± 0.003 m | 1.6650 ± 0.0004 s | 9.928 ± 0.043 |
 
 Damping: the AIC comparison prefers quadratic air drag for the golf ball (E3: the runner-up,
 viscous damping, is 145 AIC units behind) and viscous damping for the battery on a stiff cable,
@@ -95,7 +106,8 @@ cut (a thread is never cut exactly to plan).
 | P1 | E1 only (g = 9.92 ± 0.25) | 0.600 m | E2 (0.619 m) | 1.5697 ± 0.0205 s | 1.5852 ± 0.0008 s | +0.76 | **confirmed, blind** |
 | P2 | E1 + E2 (g = 9.731 ± 0.047) | 0.300 m | E3 (0.289 m) | 1.0822 ± 0.0062 s | 1.0868 ± 0.0002 s | +0.73 | **confirmed, blind** |
 | P3 | E1 + E2 + E3 (with length offset) | 0.500 m | E4 (0.489 m) | 1.4097 ± 0.0053 s | 1.3982 ± 0.0003 s | −2.17 | **tension** |
-| P4 | E1 – E4 (with length offset) | 0.700 m | — | 1.6806 ± 0.0055 s | — | — | pending |
+| P4 | E1 – E4 (with length offset) | 0.700 m | E5 (0.697 m) | 1.6770 ± 0.0055 s | 1.6650 ± 0.0004 s | −2.17 | **tension** |
+| P5 | E1 – E5 (with length offset) | 0.550 m | — | 1.4864 ± 0.0045 s | — | — | pending |
 
 The agent found each test on its own: it noticed that the new experiment was added after the
 pending prediction and that its length was within the allowed 20 % of the plan, verified it,
@@ -110,7 +122,42 @@ tape, and where the centre of the ball is, is uncertain by about 4–5 mm when t
 rebuilt for every length; ± 3 mm was optimistic. The agent read it the same way: "record the
 0.70 m experiment to decide if the P3 tension is noise or bias in length scale."
 
+**P4 answered that question: bias.** E5 was filmed on Nov 3; its length was measured to the
+bottom of the ball (71.8 and 71.9 cm, so L = 0.697 m) and written down before any analysis, and
+the whole run went through the web app with no clicks. The agent verified P4 blind and found it
+2.17 σ short, almost exactly like P3 (`docs/evidence/agent/run_20261103_170827.jsonl`, $0.04).
+Two blind tests off in the same direction by the same amount is not noise. The periods imply
+these lengths, against the tape:
+
+| | E2 | E3 | E4 | E5 |
+|---|---|---|---|---|
+| implied by the period (local g) − tape | +4.6 mm | +4.4 mm | −3.9 mm | **−9.0 mm** |
+| setup | earlier setup | same | thread under a desk top | same desk |
+
+The sign follows the setup. The most likely cause under the desk: the thread bends over the
+edge of the desk top, so the effective pivot sits below the point we measured from (not yet
+checked by hand). In both desk runs Muse Spark had written, before any number existed, that the
+string attachment under the desk top was hidden.
+The five lengths are consistent with each other at about ± 5 mm, not the ± 3 mm we entered
+(χ² = 4.1 for 3 dof at ± 5 mm), which gives g = 9.83 ± 0.04 m/s² without an offset term or
+9.99 ± 0.16 with one. That last calculation was done after the verdicts and changes none of
+them. **The clock is good to 0.02 %; the tape measure is the instrument's weak link, and the
+instrument found it.** The agent registered P5 at 0.55 m to keep testing.
+
 ## How the measurement works
+
+```mermaid
+flowchart LR
+    V["Phone video<br/>exact frame times,<br/>camera shake removed"] --> L
+    L["Muse Spark 1.3<br/>sees 10 frames: experiment,<br/>object, release frame, issues"] -->|one point on one frame| S
+    S["SAM 3.1<br/>mask of the object<br/>on every frame"] --> P
+    P["Physics code, tested<br/>competing models (AIC),<br/>uncertainties"] --> R["Result with error bars<br/>T0, g / e / frequency, Q"]
+    R --> N[("Lab notebook<br/>experiments,<br/>frozen predictions")]
+    N <--> A["Muse Spark agent<br/>7 tools: fit, estimate g,<br/>predict, verify blind"]
+    A -->|asks for the next experiment| V
+```
+
+The models see and decide; the arithmetic is done by code tested against videos with a known answer.
 
 `video → SAM 3.1 masks → centroid track → period → g ± σ`
 
@@ -508,7 +555,7 @@ the first commit is dated Oct 30, 2026, and the commit history shows every step 
 | Oct 30 | SAM 3.1 pipeline, physics fits, synthetic validation; first real run (battery, g = 9.92 ± 0.25) |
 | Oct 31 | Muse Spark agent with 7 tools and a lab notebook; golf-ball pendulum E2; **P1 confirmed blind**; overlay video; CI |
 | Nov 1 | E3 filmed; **the agent verified P2 blind by itself**; Muse Spark lab assistant (fully automatic run = human click); E4: P3 in tension (z = −2.2, traced to ±4–5 mm length errors); g from three lengths 9.782 ± 0.127; bouncing-ball module; first real drop e = 0.8638 ± 0.0004 with rolling-shutter correction; prediction B1 registered and **failed on 2 of 3 drops** (hand release 31–34 cm, measured from the video) |
-| Nov 2 | Accuracy map with SAM 3.1 (81 videos): SAM holds where the model-free tracker fails; web app with in-browser camera and live progress; Docker; Hugging Face Space; renamed **Isochron AI**, new site (replay of a real run, themes); third system: any oscillator |
+| Nov 2 | Accuracy map with SAM 3.1 (81 videos): SAM holds where the model-free tracker fails; web app with in-browser camera and live progress; renamed **Isochron AI**, new site (replay of a real run, themes), published as a static copy on GitHub Pages; Docker image on GitHub Packages; third system: any oscillator; security review of the web app; `eval/reproduce.py` re-measures every real result from the saved tracks (it caught one stale result file, now fixed) |
 
 ## Licence
 

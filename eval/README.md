@@ -5,10 +5,10 @@ SAM 3.1 benchmark costs API credits.
 
 | Check | What it shows | Result | Rerun |
 |---|---|---|---|
-| **1. Reproduction** | every published real result comes out of this code, from the saved SAM 3.1 tracks | 9 of 9 values identical | `python eval/reproduce.py` (free, no key; also run in CI) |
+| **1. Reproduction** | every published real result comes out of this code, from the saved SAM 3.1 tracks | 11 of 11 values identical | `python eval/reproduce.py` (free, no key; also run in CI) |
 | **2. Accuracy benchmark** | error and honesty of the error bar on 81 synthetic videos with a known g, one condition made harder at a time | 0.000–0.03 % in normal to hard conditions; SAM 3.1 holds where a model-free tracker loses the object | `python scripts/accuracy_map.py --tracker sam` (~$7.40) or `--tracker opencv` (free) |
 | **3. Cross-checks on real video** | two trackers, two period estimators, automatic vs human setup | agree to 0.05 %, 0.2–0.6 σ, and identically | in the README, *Validation* |
-| **4. Blind predictions** | the physics predicts experiments that were filmed later | P1, P2 confirmed; P3 in tension (2.2 σ, cause found); B1 refuted (the drop was 34 cm, not 30) | `docs/evidence/lab.json`, agent logs in `docs/evidence/agent/` |
+| **4. Blind predictions** | the physics predicts experiments that were filmed later | P1, P2 confirmed; P3 and P4 in tension, both 2.2 σ short in the same direction (the tape-measured length, not the clock); B1 refuted (the drop was 34 cm, not 30) | `docs/evidence/lab.json`, agent logs in `docs/evidence/agent/` |
 
 ## 1. Reproduction (free)
 
@@ -26,6 +26,8 @@ E4 white ball, 0.489 m (tests P3)                    T0, s          1.39817     
 E4 white ball, 0.489 m (tests P3)                    g, m/s²        9.87520      9.87520   0.000  ok
 E4, fully automatic (Muse Spark chose the point)     T0, s          1.39818      1.39818   0.000  ok
 E4, fully automatic (Muse Spark chose the point)     g, m/s²        9.87516      9.87516   0.000  ok
+E5 white ball, 0.697 m (tests P4), fully automatic   T0, s          1.66505      1.66505   0.000  ok
+E5 white ball, 0.697 m (tests P4), fully automatic   g, m/s²        9.92807      9.92807   0.000  ok
 bouncing golf ball, first drop                       e              0.86384      0.86384   0.000  ok
 all reproduced
 ```

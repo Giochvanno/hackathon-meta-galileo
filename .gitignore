@@ -12,6 +12,6 @@ data/*.json
 *.zip
 *.mp4
 
-# the one small web clip of a real run shown on the site (1.6 MB)
-!docs/evidence/p3_auto/overlay_web.mp4
+# small web clips of real runs shown on the site (~1.5 MB each)
+!docs/evidence/*/overlay_web.mp4
 site/

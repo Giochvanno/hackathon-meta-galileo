@@ -45,35 +45,48 @@
       "note": "golf ball on thread, 51.0 cm to bottom, blind test of P3",
       "added_at": "2026-11-01T07:18:31+00:00",
       "seq": 7
+    },
+    "E5": {
+      "id": "E5",
+      "track_csv": "runs\\web\\b2ab5ee8befa\\track.csv",
+      "length_m": 0.697,
+      "length_err_m": 0.003,
+      "t_start": null,
+      "t_end": null,
+      "amplitude_deg": null,
+      "note": "",
+      "added_at": "2026-11-03T08:08:15+00:00",
+      "seq": 10
     }
   },
   "model": {
-    "a": 4.019689178459765,
-    "b": 0.010587557489955107,
+    "a": 3.9467544698284915,
+    "b": 0.03866185981949466,
     "cov": [
       [
-        0.0026482683236434316,
-        -0.0012221418188172832
+        0.0014557594671444408,
+        -0.0007557536608857854
       ],
       [
-        -0.0012221418188172832,
-        0.0006117206556749532
+        -0.0007557536608857854,
+        0.0004270942845135037
       ]
     ],
-    "g": 9.82126125967891,
-    "sigma_g": 0.12573488367619762,
-    "offset_m": 0.002633924420497599,
-    "sigma_offset_m": 0.00618534572284023,
-    "chi2": 5.532542941273914,
-    "dof": 2,
+    "g": 10.002754898019534,
+    "sigma_g": 0.0966995224404491,
+    "offset_m": 0.00979586141348558,
+    "sigma_offset_m": 0.005327100844024366,
+    "chi2": 10.570341433485925,
+    "dof": 3,
     "fit_offset": true,
     "basis": [
       "E1",
       "E2",
       "E3",
-      "E4"
+      "E4",
+      "E5"
     ],
-    "created_at": "2026-11-01T07:19:16+00:00"
+    "created_at": "2026-11-03T08:08:46+00:00"
   },
   "predictions": {
     "P1": {
@@ -280,6 +293,64 @@
       },
       "created_at": "2026-11-01T07:19:21+00:00",
       "seq": 8,
+      "verified_by": {
+        "prediction": "P4",
+        "experiment": "E5",
+        "blind": true,
+        "length_predicted_for_m": 0.7,
+        "length_used_m": 0.697,
+        "length_mismatch_pct": 0.42857142857142894,
+        "note": "the frozen model is re-evaluated at the length actually used",
+        "T0_predicted": 1.676994607885312,
+        "sigma_T0_predicted": 0.005497890648938385,
+        "T0_measured": 1.665045913328556,
+        "sigma_T0_measured": 0.0003803801506899353,
+        "difference_pct": -0.7125064386356761,
+        "z": -2.1681404180142407,
+        "verdict": "tension",
+        "verified_at": "2026-11-03T08:08:50+00:00"
+      }
+    },
+    "P5": {
+      "id": "P5",
+      "length_m": 0.55,
+      "length_err_m": 0.003,
+      "amplitude_deg": 10.0,
+      "T0": 1.4863972612411411,
+      "sigma_T0": 0.004466745760787481,
+      "T_at_amplitude": 1.4892320905930791,
+      "sigma_T_at_amplitude": 0.004475264655648571,
+      "model": {
+        "a": 3.9467544698284915,
+        "b": 0.03866185981949466,
+        "cov": [
+          [
+            0.0014557594671444408,
+            -0.0007557536608857854
+          ],
+          [
+            -0.0007557536608857854,
+            0.0004270942845135037
+          ]
+        ],
+        "g": 10.002754898019534,
+        "sigma_g": 0.0966995224404491,
+        "offset_m": 0.00979586141348558,
+        "sigma_offset_m": 0.005327100844024366,
+        "chi2": 10.570341433485925,
+        "dof": 3,
+        "fit_offset": true,
+        "basis": [
+          "E1",
+          "E2",
+          "E3",
+          "E4",
+          "E5"
+        ],
+        "created_at": "2026-11-03T08:08:46+00:00"
+      },
+      "created_at": "2026-11-03T08:08:58+00:00",
+      "seq": 11,
       "verified_by": null
     }
   },
@@ -304,7 +375,13 @@
       "instructions": "Golf ball on thread as in E2-E4. Tape-measure length to bob centre ~0.70 m. Release ~10 deg, film ~40 s steady, no nudges. Report length actually used.",
       "created_at": "2026-11-01T07:19:22+00:00",
       "seq": 9
+    },
+    {
+      "length_m": 0.55,
+      "instructions": "Golf ball on sewing thread, tape-measured length to pivot. Release ~10 deg, film ~30 s steady, no nudges. Target 0.55 m.",
+      "created_at": "2026-11-03T08:09:00+00:00",
+      "seq": 12
     }
   ],
-  "seq": 9
+  "seq": 12
 }

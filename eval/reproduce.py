@@ -26,6 +26,7 @@ RUNS = [
     ("VID_20261101_141249", "E3 golf ball, 0.289 m (tests P2)", "pendulum", []),
     ("VID_20261101_161000", "E4 white ball, 0.489 m (tests P3)", "pendulum", []),
     ("p3_auto", "E4, fully automatic (Muse Spark chose the point)", "pendulum", []),
+    ("p4_auto", "E5 white ball, 0.697 m (tests P4), fully automatic", "pendulum", []),
     ("VID_20261101_142028", "bouncing golf ball, first drop", "bounce", []),
 ]
 

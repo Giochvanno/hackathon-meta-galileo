@@ -483,6 +483,10 @@ def _examples() -> list[dict]:
         return [{"src": f"/evidence/{folder}/{n}", "label": label, "caption": cap}
                 for n, label, cap in views if (EVIDENCE / folder / n).exists()]
 
+    pend("p4_auto", "Pendulum, blind test of prediction P4",
+         "Filmed on Nov 3 and measured with no clicks. The agent had predicted 1.6770 ± 0.0055 s "
+         "for this length two days before; it came out 1.6650 ± 0.0004 s, 2.2 σ short, the same "
+         "way as P3. The clock is fine; the tape-measured length is the weak link.")
     pend("p3_auto", "Pendulum, fully automatic",
          "Muse Spark chose the frame and the ball, SAM 3.1 tracked it: the same period as with "
          "a human click. White ball in front of a white panel.")
