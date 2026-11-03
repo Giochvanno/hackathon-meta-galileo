@@ -1,0 +1,58 @@
+{
+  "experiment": "pendulum",
+  "object_name": "white ball bob",
+  "frame_index": 142,
+  "point_px": [
+    204,
+    1049
+  ],
+  "release_index": 142,
+  "t_release": 4.927374,
+  "pivot_px": [
+    331,
+    262
+  ],
+  "floor_y_px": null,
+  "issues": [
+    {
+      "detail": "person's face and hand holding the ball are visible in F0-F4 before release",
+      "kind": "hand_in_frame"
+    },
+    {
+      "detail": "framing shifts between F4 and F5 as person leaves, viewpoint only stable after release",
+      "kind": "camera_moving"
+    },
+    {
+      "detail": "string attachment under desktop is not clearly seen",
+      "kind": "pivot_not_visible"
+    },
+    {
+      "detail": "thin string has very low contrast against wooden back panel and is hard to see",
+      "kind": "low_contrast"
+    }
+  ],
+  "confidence": "high",
+  "summary": "White ball on a thin string swinging side-to-side under a desk after being released from hand. First free motion is visible in F5 with clean tracking afterward.",
+  "model": "muse-spark-1.3",
+  "usage": {
+    "input_tokens": 6981,
+    "output_tokens": 2127
+  },
+  "sampled_frames": [
+    0,
+    28,
+    57,
+    85,
+    114,
+    142,
+    273,
+    404,
+    534,
+    665
+  ],
+  "model_point_px": [
+    204,
+    1060
+  ],
+  "point_refined": true
+}
