@@ -4,6 +4,9 @@
 
 <img src="docs/sam_tracking.gif" align="right" width="230" alt="SAM 3.1 tracking a pendulum on a phone video, with the period measured live">
 
+**3-minute demo video: [youtu.be/xCzk0IIeHaY](https://youtu.be/xCzk0IIeHaY)**: a real pendulum
+measured live, from the phone video to the agent's blind verdict.
+
 **Site: [giochvanno.github.io/hackathon-meta-galileo](https://giochvanno.github.io/hackathon-meta-galileo/)**:
 a replay of a real fully automatic run, SAM 3.1's tracking video, every blind prediction and
 the measured runs. It is the static copy of the app (no API calls); the live app, with the
@@ -41,7 +44,7 @@ package.)
 | **Impact** | A phone becomes a measuring instrument with honest error bars: the period of a pendulum to 0.02 % (statistical) from one 30 s video, where a hand stopwatch is limited by human reaction time. Blind tests found where a human with a tape measure goes wrong ([the predictions](#the-predictions-pre-registered-by-the-agent-tested-blind)). |
 | **Meta AI tooling** | Three uses of the Meta Model API in one pipeline: **Muse Spark** sees the video and sets the experiment up (no clicks), **SAM 3.1** tracks the object on every frame, a **Muse Spark agent** runs the scientific loop: model choice, g, pre-registered predictions, blind verdicts ([how](#how-the-measurement-works)). |
 | **Technical depth** | Competing physical models compared by AIC, propagated uncertainties, rolling-shutter and camera-shake correction, three physical systems; an 81-video benchmark with a known answer; every published result re-measured by `eval/reproduce.py` in CI ([evaluation](eval/README.md)). |
-| **Demo completeness** | [Live site](https://giochvanno.github.io/hackathon-meta-galileo/) (replay of a real run, SAM 3.1 videos, every prediction), the full app locally or as a Docker image, results reproducible without a key ([below](#try-it-in-2-minutes)). |
+| **Demo completeness** | [3-minute video](https://youtu.be/xCzk0IIeHaY) of a live run, [live site](https://giochvanno.github.io/hackathon-meta-galileo/) (replay of a real run, SAM 3.1 videos, every prediction), the full app locally or as a Docker image, results reproducible without a key ([below](#try-it-in-2-minutes)). |
 
 ## Try it in 2 minutes
 
