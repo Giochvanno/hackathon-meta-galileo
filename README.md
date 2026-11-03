@@ -25,6 +25,15 @@ a swing: period, frequency, damping, quality factor), and says how sure it is.
 > problem statement "Push the Frontier"**.
 > The Python package is still called `galileo` (the project's first name). MIT licence.
 
+## Why "Isochron"
+
+The legend goes that in 1583 a young Galileo, in the cathedral of Pisa, timed a swinging lamp
+against his own pulse and noticed that every swing took the same time, large or small. That
+property is called *isochronism*, and it is why a pendulum can keep time. Isochron AI does what
+Galileo did with his pulse, with a phone camera and Meta's models instead, and, unlike a pulse,
+it says how sure it is. (The project started as "Galileo", which is still the name of the Python
+package.)
+
 ## At a glance for judges
 
 | Judging pillar | What to look at |
