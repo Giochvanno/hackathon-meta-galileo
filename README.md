@@ -146,6 +146,19 @@ instrument found it.** The agent registered P5 at 0.55 m to keep testing.
 
 ## How the measurement works
 
+```mermaid
+flowchart LR
+    V["Phone video<br/>exact frame times,<br/>camera shake removed"] --> L
+    L["Muse Spark 1.3<br/>sees 10 frames: experiment,<br/>object, release frame, issues"] -->|one point on one frame| S
+    S["SAM 3.1<br/>mask of the object<br/>on every frame"] --> P
+    P["Physics code, tested<br/>competing models (AIC),<br/>uncertainties"] --> R["Result with error bars<br/>T0, g / e / frequency, Q"]
+    R --> N[("Lab notebook<br/>experiments,<br/>frozen predictions")]
+    N <--> A["Muse Spark agent<br/>7 tools: fit, estimate g,<br/>predict, verify blind"]
+    A -->|asks for the next experiment| V
+```
+
+The models see and decide; the arithmetic is done by code tested against videos with a known answer.
+
 `video → SAM 3.1 masks → centroid track → period → g ± σ`
 
 * **SAM 3.1** segments and tracks the pendulum bob from a noun phrase ("white earbud"),
